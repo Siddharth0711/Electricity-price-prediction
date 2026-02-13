@@ -201,22 +201,20 @@ current_price = st.session_state.live_mcp
 st.sidebar.markdown(f"### 🏷️ Market Clearing\n**₹{current_price:.2f}**")
 st.sidebar.caption(f"Source: Provisional IEX for {st.session_state.get('m_date', 'N/A')}")
 
-base_demand = st.sidebar.slider("Grid Demand (MW)", 2000, 8000, 4200)
-temp_val = st.sidebar.slider("Ambient Temp °C", 10.0, 50.0, st.session_state.temp_val)
-wind_val = st.sidebar.slider("Wind Speed km/h", 0.0, 60.0, st.session_state.wind_val)
+base_demand = st.sidebar.slider("Grid Demand (MW)", 2000, 20000, 4200)
+temp_val = st.sidebar.slider("Ambient Temp °C", 10.0, 60.0, st.session_state.temp_val)
+wind_val = st.sidebar.slider("Wind Speed km/h", 0.0, 150.0, st.session_state.wind_val)
 
 # Prediction Logic
 def get_prediction_data(price, demand, temp, wind):
     blocks = np.arange(1, 97)
     # Scale simulation effects for high IEX prices so they stay visible
-    # If price > 1000 (IEX level), we use a percentage-based scaling factor
-    # But we keep it subtle enough to avoid unrealistic spikes
     scale_factor = max(1.0, price / 150.0) 
     
-    solar_peak = (temp / 45) * 18 * scale_factor
+    solar_peak = (temp / 60) * 20 * scale_factor
     solar_effect = -solar_peak * np.exp(-((blocks-50)**2)/150)
-    wind_effect = -(wind/60) * 12 * scale_factor
-    demand_factor = (demand/6000) * 22 * scale_factor
+    wind_effect = -(wind/150) * 15 * scale_factor
+    demand_factor = (demand/20000) * 25 * scale_factor
     demand_effect = demand_factor * (np.exp(-((blocks-35)**2)/120) + np.exp(-((blocks-80)**2)/120))
     
     # Base pattern with proportional sine wave
