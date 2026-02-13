@@ -1,0 +1,105 @@
+# Model Training Configuration
+
+# Data Splitting
+data_split:
+  train_ratio: 0.7
+  validation_ratio: 0.15
+  test_ratio: 0.15
+  time_series_split: true  # Preserve temporal order
+
+# Feature Engineering
+features:
+  lag_features:
+    - 1  # 1 hour lag
+    - 3
+    - 6
+    - 12
+    - 24
+  rolling_windows:
+    - 3
+    - 6
+    - 12
+    - 24
+  cyclical_features:
+    - hour_of_day
+    - day_of_week
+    - month_of_year
+  interaction_features: true
+
+# Baseline Models
+baseline_models:
+  linear_regression:
+    normalize: true
+    
+  arima:
+    order: [2, 1, 2]
+    seasonal_order: [1, 1, 1, 24]
+    
+  decision_tree:
+    max_depth: 10
+    min_samples_split: 20
+
+# Advanced Models
+advanced_models:
+  xgboost:
+    n_estimators: 500
+    max_depth: 8
+    learning_rate: 0.05
+    subsample: 0.8
+    colsample_bytree: 0.8
+    gamma: 0.1
+    early_stopping_rounds: 50
+    
+  lightgbm:
+    n_estimators: 500
+    max_depth: -1
+    learning_rate: 0.05
+    num_leaves: 31
+    subsample: 0.8
+    colsample_bytree: 0.8
+    early_stopping_rounds: 50
+    
+  catboost:
+    iterations: 500
+    depth: 8
+    learning_rate: 0.05
+    l2_leaf_reg: 3
+    early_stopping_rounds: 50
+    
+  random_forest:
+    n_estimators: 200
+    max_depth: 15
+    min_samples_split: 10
+    max_features: sqrt
+    
+  lstm:
+    sequence_length: 24
+    hidden_units: [128, 64]
+    dropout: 0.2
+    learning_rate: 0.001
+    batch_size: 32
+    epochs: 100
+    early_stopping_patience: 10
+
+# Hyperparameter Tuning
+hyperparameter_search:
+  method: optuna  # optuna, grid, random
+  n_trials: 100
+  timeout: 3600  # seconds
+  cv_folds: 5
+
+# Model Evaluation
+evaluation:
+  metrics:
+    - rmse
+    - mae
+    - mape
+    - r2_score
+    - directional_accuracy
+  backtesting_window: 30  # days
+  
+# Model Persistence
+model_saving:
+  save_best_only: true
+  save_format: joblib
+  model_registry: mlflow

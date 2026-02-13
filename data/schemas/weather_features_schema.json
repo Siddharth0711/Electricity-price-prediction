@@ -1,0 +1,59 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Weather Features Schema",
+    "description": "Schema for weather data affecting renewable energy generation",
+    "type": "object",
+    "properties": {
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "temperature_celsius": {
+            "type": "number",
+            "minimum": -50,
+            "maximum": 60
+        },
+        "solar_irradiance_w_m2": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1500
+        },
+        "wind_speed_m_s": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 50
+        },
+        "wind_direction_degrees": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 360
+        },
+        "rainfall_mm_hr": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 200
+        },
+        "cloud_cover_percent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+        },
+        "humidity_percent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+        },
+        "pressure_hpa": {
+            "type": "number",
+            "minimum": 900,
+            "maximum": 1100
+        }
+    },
+    "required": [
+        "timestamp",
+        "temperature_celsius",
+        "solar_irradiance_w_m2",
+        "wind_speed_m_s",
+        "cloud_cover_percent"
+    ]
+}

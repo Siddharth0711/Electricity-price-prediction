@@ -1,0 +1,87 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Energy Sources Schema",
+    "description": "Schema for renewable and non-renewable energy sources",
+    "type": "object",
+    "properties": {
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp"
+        },
+        "renewable_generation": {
+            "type": "object",
+            "properties": {
+                "solar_mw": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "hydro_mw": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "wind_mw": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "biomass_mw": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "total_renewable_mw": {
+                    "type": "number",
+                    "minimum": 0
+                }
+            },
+            "required": [
+                "solar_mw",
+                "hydro_mw",
+                "wind_mw",
+                "biomass_mw",
+                "total_renewable_mw"
+            ]
+        },
+        "non_renewable_generation": {
+            "type": "object",
+            "properties": {
+                "coal_mw": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "thermal_gas_mw": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "nuclear_mw": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "total_non_renewable_mw": {
+                    "type": "number",
+                    "minimum": 0
+                }
+            },
+            "required": [
+                "coal_mw",
+                "thermal_gas_mw",
+                "nuclear_mw",
+                "total_non_renewable_mw"
+            ]
+        },
+        "total_generation_mw": {
+            "type": "number",
+            "minimum": 0
+        },
+        "renewable_percentage": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+        }
+    },
+    "required": [
+        "timestamp",
+        "renewable_generation",
+        "non_renewable_generation",
+        "total_generation_mw"
+    ]
+}

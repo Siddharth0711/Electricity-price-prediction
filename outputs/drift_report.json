@@ -1,0 +1,22 @@
+{
+    "MCP": {
+        "statistic": 0.04874213836477988,
+        "p_value": 0.9965529967456732,
+        "drift_detected": false
+    },
+    "demand_mw": {
+        "statistic": 0.19129979035639413,
+        "p_value": 0.01759960041893275,
+        "drift_detected": true
+    },
+    "wind_hub_wspd": {
+        "statistic": 0.6289308176100629,
+        "p_value": 3.962115578321997e-24,
+        "drift_detected": true
+    },
+    "solar_hub_temp": {
+        "statistic": 0.2140985324947589,
+        "p_value": 0.005364673887714431,
+        "drift_detected": true
+    }
+}

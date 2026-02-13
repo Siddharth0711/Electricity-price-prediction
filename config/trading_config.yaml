@@ -1,0 +1,73 @@
+# Trading Strategy Configuration
+
+# Bidding Strategy
+bidding:
+  strategy: risk_adjusted  # Options: aggressive, conservative, risk_adjusted
+  
+  risk_adjusted:
+    bid_multiplier: 0.98  # Bid at 98% of forecast to increase win rate
+    confidence_threshold: 0.8  # Only bid if forecast confidence > 80%
+    max_position_size: 1000  # MWh
+    
+  aggressive:
+    bid_multiplier: 1.02
+    confidence_threshold: 0.6
+    max_position_size: 2000
+    
+  conservative:
+    bid_multiplier: 0.95
+    confidence_threshold: 0.9
+    max_position_size: 500
+
+# Portfolio Optimization
+portfolio:
+  objective: maximize_sharpe  # maximize_sharpe, minimize_risk, maximize_return
+  
+  constraints:
+    max_daily_trades: 48  # 2 per hour
+    max_single_trade: 500  # MWh
+    min_cash_reserve: 100000  # INR
+    max_leverage: 2.0
+    
+  risk_limits:
+    max_var_95: 0.05  # 5% VaR at 95% confidence
+    max_drawdown: 0.15  # 15%
+    max_position_concentration: 0.3  # 30% in single position
+
+# Hedging Strategy
+hedging:
+  enabled: true
+  hedge_ratio: 0.5  # Hedge 50% of exposure
+  instruments:
+    - futures
+    - options
+  rebalance_frequency: daily
+
+# Backtesting
+backtesting:
+  initial_capital: 1000000  # INR
+  transaction_cost: 0.02  # 2% per trade
+  slippage: 0.005  # 0.5%
+  commission: 10  # INR per trade
+  
+# Signal Generation
+signals:
+  price_threshold:
+    buy: -0.05  # Buy if forecast < current price - 5%
+    sell: 0.05  # Sell if forecast > current price + 5%
+    
+  volume_allocation:
+    strong_signal: 1.0  # 100% of max position
+    medium_signal: 0.6
+    weak_signal: 0.3
+    
+  holding_period:
+    min_hours: 1
+    max_hours: 24
+    
+# Performance Targets
+targets:
+  sharpe_ratio: 1.5
+  win_rate: 0.60  # 60%
+  profit_factor: 1.5
+  max_consecutive_losses: 5
