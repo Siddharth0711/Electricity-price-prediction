@@ -26,7 +26,7 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     </style>
-    """, unsafe_allow_headers=True)
+    """, unsafe_allow_html=True)
 
 # Title and Description
 st.title("⚡ Weather-Driven Electricity Price Forecasting")
@@ -103,7 +103,7 @@ if model:
         
     with col3:
         st.markdown(f"**Trading Signal**")
-        st.markdown(f"<h2 style='color: {color}; margin: 0;'>{signal}</h2>", unsafe_allow_headers=True)
+        st.markdown(f"<h2 style='color: {color}; margin: 0;'>{signal}</h2>", unsafe_allow_html=True)
     with col4:
         st.metric("Model Confidence", confidence)
 
