@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 from meteostat import hourly, Point, stations
 import os
 import sys
+import time
+from streamlit_autorefresh import st_autorefresh
 
 # Standardize path for local imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -149,41 +151,42 @@ st.title("⚡ Electricity Price Strategy Dashboard")
 st.markdown("#### Strategic Insights for the Indian Day-Ahead Market (DAM)")
 
 # Sidebar
-st.sidebar.header("🕹️ Control Center")
+st.sidebar.header("🕹️ Production Control")
+
+# Auto-refresh cycle (60 seconds)
+st_autorefresh(interval=60 * 1000, key="iex_auto_refresh")
+
 selected_solar_hub = st.sidebar.selectbox("Solar Monitoring Site", list(SOLAR_HUBS.keys()))
 selected_wind_hub = st.sidebar.selectbox("Wind Monitoring Site", list(WIND_HUBS.keys()))
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("🌐 Live Data Feeds")
-live_market_feed = st.sidebar.checkbox("🚀 Enable Live IEX Feed", value=False, help="Overrides entry price with real-time data from IEX India.")
+st.sidebar.subheader("🌐 Live Data Status")
+st.sidebar.success("🚀 Live IEX Feed: ENABLED (Production)")
 
-if st.sidebar.button("Sync Intelligence (Hubs + IEX)"):
-    with st.spinner("Syncing national hub intelligence..."):
-        s_loc, w_loc = SOLAR_HUBS[selected_solar_hub], WIND_HUBS[selected_wind_hub]
-        s_data = fetch_live_weather(s_loc['lat'], s_loc['lon'])
-        w_data = fetch_live_weather(w_loc['lat'], w_loc['lon'])
-        if s_data is not None: st.session_state.temp_val = float(s_data['temp'])
-        if w_data is not None: st.session_state.wind_val = float(w_data['wspd'])
-        
-        if live_market_feed:
-            scraper = get_iex_instance()
-            if scraper:
-                result = scraper.get_latest_mcp()
-                # Defensive check for tuple return (handles old cached versions)
-                if isinstance(result, (tuple, list)) and len(result) >= 2:
-                    live_mcp, m_date = result[0], result[1]
-                else:
-                    live_mcp, m_date = result, "N/A" # Fallback for old version
-                
-                if live_mcp and not np.isnan(live_mcp):
-                    st.session_state.live_mcp = float(live_mcp)
-                    st.session_state.m_date = str(m_date)
-                    st.session_state.sync_time = datetime.now().strftime("%H:%M:%S")
-                    st.sidebar.success(f"IEX MCP Synced: ₹{live_mcp:.2f}")
-                else:
-                    st.sidebar.error("Could not reach IEX. Check connection.")
-        
-        st.sidebar.success("Weather Hubs Synced Successfully")
+# Mandatory Sync Logic (Auto-runs every refresh)
+scraper = get_iex_instance()
+if scraper:
+    result = scraper.get_latest_mcp()
+    if isinstance(result, (tuple, list)) and len(result) >= 2:
+        live_mcp, m_date = result[0], result[1]
+    else:
+        live_mcp, m_date = result, "N/A"
+    
+    if live_mcp and not np.isnan(live_mcp):
+        st.session_state.live_mcp = float(live_mcp)
+        st.session_state.m_date = str(m_date)
+        st.session_state.sync_time = datetime.now().strftime("%H:%M:%S")
+    else:
+        st.sidebar.error("🚨 IEX Link Interrupted. Using last cache.")
+
+# Sync weather as well for the selected hubs
+s_loc, w_loc = SOLAR_HUBS[selected_solar_hub], WIND_HUBS[selected_wind_hub]
+s_data = fetch_live_weather(s_loc['lat'], s_loc['lon'])
+w_data = fetch_live_weather(w_loc['lat'], w_loc['lon'])
+if s_data is not None: st.session_state.temp_val = float(s_data['temp'])
+if w_data is not None: st.session_state.wind_val = float(w_data['wspd'])
+
+st.sidebar.info(f"Last Intelligence Sync: {st.session_state.get('sync_time', 'Pending...')}")
 
 st.sidebar.markdown("---")
 models = load_models()
@@ -193,14 +196,10 @@ if 'temp_val' not in st.session_state: st.session_state.temp_val = 32.0
 if 'wind_val' not in st.session_state: st.session_state.wind_val = 25.0
 if 'live_mcp' not in st.session_state: st.session_state.live_mcp = 52.0
 
-# Price Logic (Live vs Simulation)
-if live_market_feed:
-    current_price = st.session_state.live_mcp
-    st.sidebar.info(f"Using Live IEX MCP: ₹{current_price:.2f}")
-    # Show slider but disabled or as a shadow
-    _ = st.sidebar.slider("Market Entry Price (Live Locked)", 15.0, 150.0, current_price, disabled=True)
-else:
-    current_price = st.sidebar.slider("Market Entry Price (INR/MWh)", 15.0, 150.0, st.session_state.live_mcp)
+# Price is LOCKED to Live IEX
+current_price = st.session_state.live_mcp
+st.sidebar.markdown(f"### 🏷️ Market Clearing\n**₹{current_price:.2f}**")
+st.sidebar.caption(f"Source: Provisional IEX for {st.session_state.get('m_date', 'N/A')}")
 
 base_demand = st.sidebar.slider("Grid Demand (MW)", 2000, 8000, 4200)
 temp_val = st.sidebar.slider("Ambient Temp °C", 10.0, 50.0, st.session_state.temp_val)
@@ -233,7 +232,7 @@ st.markdown("### 📈 Market Pulse")
 col1, col2, col3, col4 = st.columns(4)
 
 price_diff = next_price - current_price
-provenance = f"IEX Date: {st.session_state.get('m_date', 'N/A')} | Sync: {st.session_state.get('sync_time', 'N/A')}" if live_market_feed else "Mode: Strategy Simulation"
+provenance = f"IEX Date: {st.session_state.get('m_date', 'N/A')} | Auto-Sync every 60s"
 
 with col1: custom_card("T-Entry Price", f"₹{current_price:.2f}", subtext=provenance)
 with col2: custom_card("T+1 Forecast", f"₹{next_price:.2f}", delta=f"{abs(price_diff):.2f}", delta_up=price_diff > 0)
