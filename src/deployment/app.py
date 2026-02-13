@@ -167,13 +167,22 @@ st.sidebar.subheader("🌐 IEX DAM Live Synchronization")
 if 'hub_data' not in st.session_state: st.session_state.hub_data = {}
 
 with st.spinner("Syncing IEX Market Dynamics..."):
-    # Sync IEX Price & Volume (MCV)
+    # Sync IEX Price & Volume (MCV) - Defensive call for deployment transitions
     scraper = get_iex_instance()
+    mcp, mcv, m_date = 5200.0, 14500.0, "N/A"
+    
     if scraper:
-        mcp, mcv, m_date = scraper.get_latest_market_data()
-        st.session_state.live_mcp = float(mcp) if mcp else 5200.0
-        st.session_state.live_mcv = float(mcv) if mcv else 14500.0
-        st.session_state.m_date = str(m_date)
+        try:
+            if hasattr(scraper, 'get_latest_market_data'):
+                mcp, mcv, m_date = scraper.get_latest_market_data()
+            elif hasattr(scraper, 'get_latest_mcp'):
+                mcp, m_date = scraper.get_latest_mcp()
+                mcv = 14500.0 # Default fallback
+        except Exception: pass
+    
+    st.session_state.live_mcp = float(mcp) if mcp else 5200.0
+    st.session_state.live_mcv = float(mcv) if mcv else 14500.0
+    st.session_state.m_date = str(m_date)
     
     # Sync National Renewables (Sell Bid Proxies)
     for name, loc in SOLAR_HUBS.items():

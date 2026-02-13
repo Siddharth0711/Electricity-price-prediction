@@ -95,6 +95,11 @@ class IEXScraper:
             return mcp, mcv, market_date
         return None, None, market_date
 
+    def get_latest_mcp(self):
+        """Legacy alias for backward compatibility."""
+        mcp, _, date = self.get_latest_market_data()
+        return mcp, date
+
 if __name__ == "__main__":
     scraper = IEXScraper()
     df, m_date = scraper.fetch_provisional_dam()
