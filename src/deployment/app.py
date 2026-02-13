@@ -202,22 +202,28 @@ with st.spinner("Syncing IEX Market Dynamics..."):
     
     if scraper:
         try:
-            if hasattr(scraper, 'get_latest_market_data'):
-                res = scraper.get_latest_market_data()
+            # Try to get data directly with block timing
+            res = scraper.get_latest_market_data()
+            if res and isinstance(res, tuple):
                 if len(res) == 4:
                     mcp, mcv, m_block, m_date = res
-                else:
+                elif len(res) == 3:
                     mcp, mcv, m_date = res
-                    m_block = "N/A"
+                    # Version mismatch: try to recover block from the dataframe
+                    df, _ = scraper.fetch_provisional_dam()
+                    if df is not None and not df.empty and 'BLOCK' in df.columns:
+                        m_block = str(df['BLOCK'].iloc[-1])
             elif hasattr(scraper, 'get_latest_mcp'):
                 mcp, m_date = scraper.get_latest_mcp()
                 mcv, m_block = 14500.0, "N/A"
         except Exception: pass
     
+    # Final data safety checks
     st.session_state.live_mcp = float(mcp) if mcp else 5200.0
     st.session_state.live_mcv = float(mcv) if mcv else 14500.0
     st.session_state.m_date = str(m_date)
-    st.session_state.m_block = str(m_block)
+    # Ensure m_block isn't statistical/header garbage
+    st.session_state.m_block = str(m_block) if m_block and ":" in str(m_block) else "00:00 - 24:00"
     
     # Sync National Renewables (Sell Bid Proxies)
     for name, loc in SOLAR_HUBS.items():

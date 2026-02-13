@@ -64,18 +64,28 @@ class IEXScraper:
                 h = h.upper()
                 if 'MCP' in h: return 'MCP'
                 if 'MCV' in h: return 'MCV'
-                if 'BLOCK' in h or 'TIME' in h or 'INTERVAL' in h: return 'BLOCK'
+                if any(x in h for x in ['BLOCK', 'TIME', 'INTERVAL', 'PERIOD']): return 'BLOCK'
                 return h
             
             df.columns = [clean_header(c) for c in df.columns]
             
+            # Ensure BLOCK column exists
+            if 'BLOCK' not in df.columns:
+                # Fallback: find any col with ' - ' in first few rows
+                for col in df.columns:
+                    if df[col].astype(str).str.contains(' - ').any():
+                        df = df.rename(columns={col: 'BLOCK'})
+                        break
+
             # Drop rows where MCP or MCV are non-numeric
-            if 'MCP' in df.columns:
-                df['MCP'] = pd.to_numeric(df['MCP'], errors='coerce')
-            if 'MCV' in df.columns:
-                df['MCV'] = pd.to_numeric(df['MCV'], errors='coerce')
-                
-            df = df.dropna(subset=['MCP', 'MCV'] if 'MCP' in df.columns and 'MCV' in df.columns else [])
+            if 'MCP' in df.columns: df['MCP'] = pd.to_numeric(df['MCP'], errors='coerce')
+            if 'MCV' in df.columns: df['MCV'] = pd.to_numeric(df['MCV'], errors='coerce')
+            
+            # Filter out known statistical rows
+            exclude = ['MIN', 'MAX', 'AVERAGE', 'SUM', 'TOTAL', 'UNCONSTRAINED']
+            df = df[~df['BLOCK'].astype(str).str.upper().isin(exclude)]
+            # Keep only rows that look like time ranges (HH:MM - HH:MM)
+            df = df[df['BLOCK'].astype(str).str.contains(r'\d{2}:\d{2}', na=False)]
                 
             return df, market_date
 
