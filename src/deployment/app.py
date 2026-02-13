@@ -6,6 +6,15 @@ import joblib
 from pathlib import Path
 from datetime import datetime, timedelta
 from meteostat import hourly, Point, stations
+import os
+import sys
+
+# Standardize path for local imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+try:
+    from src.data.iex_scraper import IEXScraper
+except ImportError:
+    IEXScraper = None
 
 # Set Page Config
 st.set_page_config(
@@ -132,12 +141,9 @@ def fetch_live_weather(lat, lon):
 
 # Helper for IEX Data
 def get_iex_instance():
-    import sys
-    import os
-    # Add project root to path for imports
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-    from src.data.iex_scraper import IEXScraper
-    return IEXScraper()
+    if IEXScraper:
+        return IEXScraper()
+    return None
 
 # Title and Description
 st.title("⚡ Electricity Price Strategy Dashboard")
@@ -162,14 +168,21 @@ if st.sidebar.button("Sync Intelligence (Hubs + IEX)"):
         
         if live_market_feed:
             scraper = get_iex_instance()
-            live_mcp, m_date = scraper.get_latest_mcp()
-            if live_mcp and not np.isnan(live_mcp):
-                st.session_state.live_mcp = float(live_mcp)
-                st.session_state.m_date = str(m_date)
-                st.session_state.sync_time = datetime.now().strftime("%H:%M:%S")
-                st.sidebar.success(f"IEX MCP Synced: ₹{live_mcp:.2f}")
-            else:
-                st.sidebar.error("Could not reach IEX. Check connection.")
+            if scraper:
+                result = scraper.get_latest_mcp()
+                # Defensive check for tuple return (handles old cached versions)
+                if isinstance(result, (tuple, list)) and len(result) >= 2:
+                    live_mcp, m_date = result[0], result[1]
+                else:
+                    live_mcp, m_date = result, "N/A" # Fallback for old version
+                
+                if live_mcp and not np.isnan(live_mcp):
+                    st.session_state.live_mcp = float(live_mcp)
+                    st.session_state.m_date = str(m_date)
+                    st.session_state.sync_time = datetime.now().strftime("%H:%M:%S")
+                    st.sidebar.success(f"IEX MCP Synced: ₹{live_mcp:.2f}")
+                else:
+                    st.sidebar.error("Could not reach IEX. Check connection.")
         
         st.sidebar.success("Weather Hubs Synced Successfully")
 
