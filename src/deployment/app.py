@@ -85,15 +85,19 @@ def custom_card(label, value, delta=None, delta_up=False):
 
 # Hub Data Base
 SOLAR_HUBS = {
-    "Bhadla, Rajasthan (Strategic Hub)": {"lat": 27.53, "lon": 72.35, "desc": "World's largest solar park. Dictates North-Grid marginal costs."},
-    "Pavagada, Karnataka": {"lat": 14.28, "lon": 77.29, "desc": "Major Southern hub. High impact on SR clearing prices."},
-    "Kurnool, AP": {"lat": 15.54, "lon": 78.27, "desc": "Ultra Mega Solar Park. Key for inter-regional flows."}
+    "Bhadla, Rajasthan (North Zone)": {"lat": 27.53, "lon": 72.35, "desc": "World's largest solar park. Dictates North-Grid marginal costs."},
+    "Pavagada, Karnataka (South Zone)": {"lat": 14.28, "lon": 77.29, "desc": "Major Southern hub. High impact on SR clearing prices."},
+    "Kurnool, AP (Central-South)": {"lat": 15.54, "lon": 78.27, "desc": "Ultra Mega Solar Park. Key for inter-regional flows."},
+    "Rewa, Madhya Pradesh (Central)": {"lat": 24.53, "lon": 81.30, "desc": "Central India price setter. Supplies Delhi Metro directly."},
+    "Charanka, Gujarat (West Zone)": {"lat": 23.91, "lon": 71.20, "desc": "Pioneer solar park. Dictates Western Grid surplus dynamics."}
 }
 
 WIND_HUBS = {
-    "Muppandal, Tamil Nadu (Strategic Hub)": {"lat": 8.25, "lon": 77.53, "desc": "India's highest wind capacity. Impacts baseload prices."},
-    "Jaisalmer, Rajasthan": {"lat": 26.91, "lon": 70.91, "desc": "High altitude desert wind. Key for evening peaking."},
-    "Brahmani, Maharashtra": {"lat": 19.49, "lon": 74.34, "desc": "Western grid wind cluster. Crucial for industrial balancing."}
+    "Muppandal, Tamil Nadu (South Zone)": {"lat": 8.25, "lon": 77.53, "desc": "India's highest wind capacity. Impacts baseload prices."},
+    "Jaisalmer, Rajasthan (North Zone)": {"lat": 26.91, "lon": 70.91, "desc": "High altitude desert wind. Key for evening peaking."},
+    "Brahmani, Maharashtra (West Zone)": {"lat": 19.49, "lon": 74.34, "desc": "Western grid wind cluster. Crucial for industrial balancing."},
+    "Kutch, Gujarat (West-North)": {"lat": 23.36, "lon": 69.83, "desc": "Emerging massive wind cluster. Critical for WR-NR corridor flows."},
+    "Anantapur, AP (South Zone)": {"lat": 14.68, "lon": 77.60, "desc": "High wind penetration zone in Southern India."}
 }
 
 # Helper Functions
