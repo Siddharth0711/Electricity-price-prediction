@@ -85,7 +85,8 @@ class IEXScraper:
             exclude = ['MIN', 'MAX', 'AVERAGE', 'SUM', 'TOTAL', 'UNCONSTRAINED']
             df = df[~df['BLOCK'].astype(str).str.upper().isin(exclude)]
             # Keep only rows that look like time ranges (HH:MM - HH:MM)
-            df = df[df['BLOCK'].astype(str).str.contains(r'\d{2}:\d{2}', na=False)]
+            # Relaxed regex to handle potential single-digit hours or varying whitespace
+            df = df[df['BLOCK'].astype(str).str.contains(r'\d{1,2}:\d{2}', na=False)]
                 
             return df, market_date
 

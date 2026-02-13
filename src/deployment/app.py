@@ -198,32 +198,46 @@ if 'hub_data' not in st.session_state: st.session_state.hub_data = {}
 with st.spinner("Syncing IEX Market Dynamics..."):
     # Sync IEX Price & Volume (MCV) - Defensive call for deployment transitions
     scraper = get_iex_instance()
-    mcp, mcv, m_date, m_block = 5200.0, 14500.0, "N/A", "N/A"
     
+    # Prioritize LAST KNOWN values from session state to avoid "Jumping to Defaults"
+    mcp = st.session_state.get('live_mcp', 5200.0)
+    mcv = st.session_state.get('live_mcv', 14500.0)
+    m_date = st.session_state.get('m_date', 'N/A')
+    m_block = st.session_state.get('m_block', 'Connecting...')
+
     if scraper:
         try:
             # Try to get data directly with block timing
             res = scraper.get_latest_market_data()
             if res and isinstance(res, tuple):
+                # Flexible unpacking to handle version mismatches
                 if len(res) == 4:
-                    mcp, mcv, m_block, m_date = res
+                    new_mcp, new_mcv, new_block, new_date = res
                 elif len(res) == 3:
-                    mcp, mcv, m_date = res
-                    # Version mismatch: try to recover block from the dataframe
+                    new_mcp, new_mcv, new_date = res
+                    new_block = "N/A"
+                    # Try to recover block timing from raw df if possible
                     df, _ = scraper.fetch_provisional_dam()
                     if df is not None and not df.empty and 'BLOCK' in df.columns:
-                        m_block = str(df['BLOCK'].iloc[-1])
+                        new_block = str(df['BLOCK'].iloc[-1])
+                
+                # Only update if we got valid new data
+                if new_mcp is not None:
+                    mcp, mcv, m_date, m_block = new_mcp, new_mcv, new_date, new_block
+            
             elif hasattr(scraper, 'get_latest_mcp'):
-                mcp, m_date = scraper.get_latest_mcp()
-                mcv, m_block = 14500.0, "N/A"
+                new_mcp, new_date = scraper.get_latest_mcp()
+                if new_mcp is not None:
+                    mcp, m_date = new_mcp, new_date
+
         except Exception: pass
     
-    # Final data safety checks
-    st.session_state.live_mcp = float(mcp) if mcp else 5200.0
-    st.session_state.live_mcv = float(mcv) if mcv else 14500.0
+    # Final state injection
+    st.session_state.live_mcp = float(mcp)
+    st.session_state.live_mcv = float(mcv)
     st.session_state.m_date = str(m_date)
-    # Ensure m_block isn't statistical/header garbage
-    st.session_state.m_block = str(m_block) if m_block and ":" in str(m_block) else "00:00 - 24:00"
+    # Filter block string to ensure it looks like a time interval before saving
+    st.session_state.m_block = str(m_block) if ":" in str(m_block) else m_block
     
     # Sync National Renewables (Sell Bid Proxies)
     for name, loc in SOLAR_HUBS.items():
