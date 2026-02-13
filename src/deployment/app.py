@@ -198,20 +198,26 @@ if 'hub_data' not in st.session_state: st.session_state.hub_data = {}
 with st.spinner("Syncing IEX Market Dynamics..."):
     # Sync IEX Price & Volume (MCV) - Defensive call for deployment transitions
     scraper = get_iex_instance()
-    mcp, mcv, m_date = 5200.0, 14500.0, "N/A"
+    mcp, mcv, m_date, m_block = 5200.0, 14500.0, "N/A", "N/A"
     
     if scraper:
         try:
             if hasattr(scraper, 'get_latest_market_data'):
-                mcp, mcv, m_date = scraper.get_latest_market_data()
+                res = scraper.get_latest_market_data()
+                if len(res) == 4:
+                    mcp, mcv, m_block, m_date = res
+                else:
+                    mcp, mcv, m_date = res
+                    m_block = "N/A"
             elif hasattr(scraper, 'get_latest_mcp'):
                 mcp, m_date = scraper.get_latest_mcp()
-                mcv = 14500.0 # Default fallback
+                mcv, m_block = 14500.0, "N/A"
         except Exception: pass
     
     st.session_state.live_mcp = float(mcp) if mcp else 5200.0
     st.session_state.live_mcv = float(mcv) if mcv else 14500.0
     st.session_state.m_date = str(m_date)
+    st.session_state.m_block = str(m_block)
     
     # Sync National Renewables (Sell Bid Proxies)
     for name, loc in SOLAR_HUBS.items():
@@ -266,26 +272,43 @@ col1, col2, col3, col4 = st.columns(4)
 
 with col1: 
     custom_card("Uniform MCP", f"₹{st.session_state.live_mcp:.2f}", 
-                subtext="Cleared Price (INR/MWh)",
-                help_text="Marker Clearing Price. The uniform price where aggregate supply bids meet demand bids. Fetched live from the IEX Provisional DAM portal.")
+                subtext=f"Block: {st.session_state.m_block}",
+                help_text=f"Marker Clearing Price for the period {st.session_state.m_block}. Fetched live from the IEX Provisional DAM portal.")
 
 with col2: 
+    # Calculate next block timing for the forecast
+    current_b = st.session_state.m_block
+    next_b = "N/A"
+    try:
+        if " - " in current_b:
+            start_t = current_b.split(" - ")[1]
+            end_dt = datetime.strptime(start_t, "%H:%M") + timedelta(minutes=15)
+            next_b = f"{start_t} - {end_dt.strftime('%H:%M')}"
+    except Exception: pass
+
     custom_card("Market Volume (MCV)", f"{st.session_state.live_mcv:,.0f} MW", 
-                subtext="Total Cleared Quantity",
-                help_text="Market Clearing Volume. Total quantity of electricity (in MW) successfully traded/cleared in this block. Fetched live from IEX.")
+                subtext=f"Block: {st.session_state.m_block}",
+                help_text=f"Market Clearing Volume (MW) traded in the {st.session_state.m_block} interval. Fetched live from IEX.")
 
 with col3:
     diff = next_price - st.session_state.live_mcp
     custom_card("T+1 Price Forecast", f"₹{next_price:.2f}", 
-                delta=f"{abs(diff):.2f}", delta_up=diff > 0,
-                help_text="Predicted price for the next 15-min block. Calculated by our XG Boost model considering national supply clusters and grid demand.")
+                delta=f"{abs(diff):.2f}", delta_up=diff > 0, subtext=f"Target: {next_b}",
+                help_text=f"Predicted price for the upcoming {next_b} block based on national renewable and demand signals.")
 
 with col4:
     if diff < -2.0: sig, col, htip = "BUY BID", "#10b981", "Model suggests buying due to predicted price drops from renewable surplus."
-    elif diff > 2.0: sig, col, htip = "SELL BID", "#ef4444", "Model suggests selling/reducing demand due to predicted price spikes."
-    else: sig, col, htip = "HOLD", "#64748b", "Market stable. No immediate bidding action recommended."
+    elif diff > 2.0: sig, col, htip = "SELL BID", "#f59e0b", "Predicted price spike. Consider reducing demand or selling self-generation."
+    else: sig, col, htip = "HOLD", "#ef4444", "Market stable. No immediate bidding action recommended."
     
-    custom_card("Strategic Plan", sig, help_text=htip)
+    # Custom colored block for signal as per user request
+    st.markdown(f"""
+        <div class="strategy-container" style="background-color: {col};">
+            <div style="color: rgba(255,255,255,0.8); font-size: 10px; font-weight: 700; text-transform: uppercase;">Strategic Plan</div>
+            <div style="color: white; font-size: 24px; font-weight: 800; margin-top: 4px;">{sig}</div>
+            <div style="color: rgba(255,255,255,0.9); font-size: 10px; margin-top: 4px;">{htip[:40]}...</div>
+        </div>
+    """, unsafe_allow_html=True)
 
 st.markdown("---")
 

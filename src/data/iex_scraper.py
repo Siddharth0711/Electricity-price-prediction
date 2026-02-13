@@ -85,19 +85,20 @@ class IEXScraper:
 
     def get_latest_market_data(self):
         """
-        High-level method to get both MCP and MCV.
-        Returns a tuple: (Price/MCP, Volume/MCV, MarketDate)
+        High-level method to get MCP, MCV and Block timing.
+        Returns a tuple: (Price/MCP, Volume/MCV, BlockTime, MarketDate)
         """
         df, market_date = self.fetch_provisional_dam()
         if df is not None and not df.empty:
             mcp = df['MCP'].iloc[-1] if 'MCP' in df.columns else None
             mcv = df['MCV'].iloc[-1] if 'MCV' in df.columns else None
-            return mcp, mcv, market_date
-        return None, None, market_date
+            block = df['BLOCK'].iloc[-1] if 'BLOCK' in df.columns else "N/A"
+            return mcp, mcv, block, market_date
+        return None, None, "N/A", market_date
 
     def get_latest_mcp(self):
         """Legacy alias for backward compatibility."""
-        mcp, _, date = self.get_latest_market_data()
+        mcp, _, _, date = self.get_latest_market_data()
         return mcp, date
 
 if __name__ == "__main__":
