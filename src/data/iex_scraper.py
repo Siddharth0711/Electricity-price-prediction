@@ -23,7 +23,7 @@ class IEXScraper:
     def fetch_provisional_dam(self):
         """
         Fetches provisional DAM data (MCP and MCV) from the iexrtmprice portal.
-        This is often faster and cleaner than the main IEX portal for real-time dashboards.
+        Returns a tuple: (DataFrame, MarketDate)
         """
         try:
             logger.info(f"Fetching provisional DAM data from {self.provisional_url}")
@@ -32,11 +32,19 @@ class IEXScraper:
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
+            # Extract Market Date from h1 (e.g., "Unconstrained DAM Data for 14-02-2026")
+            market_date = "N/A"
+            h1 = soup.find('h1')
+            if h1:
+                h1_text = h1.get_text(strip=True)
+                if 'for' in h1_text:
+                    market_date = h1_text.split('for')[-1].strip()
+            
             # Look for the table in the content
             table = soup.find('table')
             if not table:
                 logger.warning("No table found on the provisional data page.")
-                return None
+                return None, market_date
             
             # Parse table rows
             rows = []
@@ -46,7 +54,7 @@ class IEXScraper:
                     rows.append(cells)
             
             if not rows:
-                return None
+                return None, market_date
                 
             # Convert to DataFrame
             df = pd.DataFrame(rows[1:], columns=rows[0])
@@ -61,7 +69,7 @@ class IEXScraper:
             
             df.columns = [clean_header(c) for c in df.columns]
             
-            # Drop rows where MCP or MCV are non-numeric (like summary rows)
+            # Drop rows where MCP or MCV are non-numeric
             if 'MCP' in df.columns:
                 df['MCP'] = pd.to_numeric(df['MCP'], errors='coerce')
             if 'MCV' in df.columns:
@@ -69,24 +77,23 @@ class IEXScraper:
                 
             df = df.dropna(subset=['MCP', 'MCV'] if 'MCP' in df.columns and 'MCV' in df.columns else [])
                 
-            return df
+            return df, market_date
 
         except Exception as e:
             logger.error(f"Error fetching provisional DAM data: {e}")
-            return None
+            return None, "Error"
 
     def get_latest_mcp(self):
         """
-        High-level method to get the latest available MCP.
+        High-level method to get the latest available MCP and its delivery date.
+        Returns a tuple: (Price, MarketDate)
         """
-        df = self.fetch_provisional_dam()
+        df, market_date = self.fetch_provisional_dam()
         if df is not None and not df.empty:
-            # Assuming the last row is the most recent or the average
-            # Typically, we want the average or the last block
             mcp_col = [c for c in df.columns if 'MCP' in c.upper()][0]
             latest_val = df[mcp_col].iloc[-1]
-            return latest_val
-        return None
+            return latest_val, market_date
+        return None, market_date
 
 if __name__ == "__main__":
     scraper = IEXScraper()

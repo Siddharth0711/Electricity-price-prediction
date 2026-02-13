@@ -68,18 +68,21 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Helper function for Custom Metric Card
-def custom_card(label, value, delta=None, delta_up=False):
+def custom_card(label, value, delta=None, delta_up=False, subtext=None):
     delta_html = ""
     if delta:
         color = "#ef4444" if delta_up else "#10b981"
         symbol = "▲" if delta_up else "▼"
         delta_html = f"<div class='metric-delta' style='color: {color};'>{symbol} {delta}</div>"
     
+    subtext_html = f"<div style='color: #94a3b8; font-size: 11px; margin-top: 4px;'>{subtext}</div>" if subtext else ""
+    
     st.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">{label}</div>
             <div class="metric-value">{value}</div>
             {delta_html}
+            {subtext_html}
         </div>
     """, unsafe_allow_html=True)
 
@@ -159,9 +162,11 @@ if st.sidebar.button("Sync Intelligence (Hubs + IEX)"):
         
         if live_market_feed:
             scraper = get_iex_instance()
-            live_mcp = scraper.get_latest_mcp()
+            live_mcp, m_date = scraper.get_latest_mcp()
             if live_mcp and not np.isnan(live_mcp):
                 st.session_state.live_mcp = float(live_mcp)
+                st.session_state.m_date = str(m_date)
+                st.session_state.sync_time = datetime.now().strftime("%H:%M:%S")
                 st.sidebar.success(f"IEX MCP Synced: ₹{live_mcp:.2f}")
             else:
                 st.sidebar.error("Could not reach IEX. Check connection.")
@@ -216,7 +221,9 @@ st.markdown("### 📈 Market Pulse")
 col1, col2, col3, col4 = st.columns(4)
 
 price_diff = next_price - current_price
-with col1: custom_card("T-Entry Price", f"₹{current_price:.2f}")
+provenance = f"IEX Date: {st.session_state.get('m_date', 'N/A')} | Sync: {st.session_state.get('sync_time', 'N/A')}" if live_market_feed else "Mode: Strategy Simulation"
+
+with col1: custom_card("T-Entry Price", f"₹{current_price:.2f}", subtext=provenance)
 with col2: custom_card("T+1 Forecast", f"₹{next_price:.2f}", delta=f"{abs(price_diff):.2f}", delta_up=price_diff > 0)
 
 if price_diff < -1.5: signal, color, conf = "BUY", "#10b981", "HIGH"
