@@ -202,8 +202,15 @@ st.sidebar.markdown(f"### 🏷️ Market Clearing\n**₹{current_price:.2f}**")
 st.sidebar.caption(f"Source: Provisional IEX for {st.session_state.get('m_date', 'N/A')}")
 
 base_demand = st.sidebar.slider("Grid Demand (MW)", 2000, 20000, 4200)
-temp_val = st.sidebar.slider("Ambient Temp °C", 10.0, 60.0, st.session_state.temp_val)
-wind_val = st.sidebar.slider("Wind Speed km/h", 0.0, 150.0, st.session_state.wind_val)
+
+# Weather Locked to Live Hub Sync
+temp_val = st.session_state.temp_val
+wind_val = st.session_state.wind_val
+
+st.sidebar.markdown(f"### 🌡️ Hub Intelligence")
+st.sidebar.write(f"**Solar Hub Temp**: {temp_val:.1f}°C")
+st.sidebar.write(f"**Wind Hub Speed**: {wind_val:.1f} km/h")
+st.sidebar.caption("Source: Live Meteostat Synchronization")
 
 # Prediction Logic
 def get_prediction_data(price, demand, temp, wind):
