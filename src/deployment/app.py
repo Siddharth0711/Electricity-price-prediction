@@ -192,13 +192,20 @@ wind_val = st.sidebar.slider("Wind Speed km/h", 0.0, 60.0, st.session_state.wind
 # Prediction Logic
 def get_prediction_data(price, demand, temp, wind):
     blocks = np.arange(1, 97)
-    solar_peak = (temp / 45) * 18 
+    # Scale simulation effects for high IEX prices so they stay visible
+    # If price > 1000 (IEX level), we use a percentage-based scaling factor
+    # But we keep it subtle enough to avoid unrealistic spikes
+    scale_factor = max(1.0, price / 150.0) 
+    
+    solar_peak = (temp / 45) * 18 * scale_factor
     solar_effect = -solar_peak * np.exp(-((blocks-50)**2)/150)
-    wind_effect = -(wind/60) * 12
-    demand_factor = (demand/6000) * 22
+    wind_effect = -(wind/60) * 12 * scale_factor
+    demand_factor = (demand/6000) * 22 * scale_factor
     demand_effect = demand_factor * (np.exp(-((blocks-35)**2)/120) + np.exp(-((blocks-80)**2)/120))
-    # In live mode, the forecast is relative to the ACTUAL market clearing
-    forecast = (price * 0.95 + 4 * np.sin(2 * np.pi * blocks / 96)) + solar_effect + wind_effect + demand_effect + np.random.normal(0,0.3,96)
+    
+    # Base pattern with proportional sine wave
+    sine_volatility = 4 * scale_factor
+    forecast = (price * 0.95 + sine_volatility * np.sin(2 * np.pi * blocks / 96)) + solar_effect + wind_effect + demand_effect + np.random.normal(0, scale_factor * 0.5, 96)
     forecast = np.maximum(forecast, 15.0)
     return blocks, forecast, forecast[0], solar_peak
 
@@ -230,8 +237,9 @@ st.markdown("---")
 # Viz
 st.subheader(f"📊 Impact Trajectory: {selected_solar_hub.split(',')[0]}")
 fig = go.Figure()
+# REMOVED fill='tozeroy' to allow tight auto-scaling on the y-axis
 fig.add_trace(go.Scatter(x=blocks, y=forecast_data, mode='lines', name='Forecasted Price', 
-                         line=dict(color='#3b82f6', width=4), fill='tozeroy', fillcolor='rgba(59, 130, 246, 0.1)'))
+                         line=dict(color='#3b82f6', width=4)))
 fig.add_hline(y=current_price, line_dash="dash", line_color="#f59e0b", annotation_text="Baseline Price")
 
 fig.update_layout(
@@ -243,7 +251,7 @@ fig.update_layout(
     height=450,
     font=dict(color="#1e293b"),
     xaxis=dict(gridcolor="#f1f5f9", linecolor="#cbd5e1"),
-    yaxis=dict(gridcolor="#f1f5f9", linecolor="#cbd5e1")
+    yaxis=dict(gridcolor="#f1f5f9", linecolor="#cbd5e1", autorange=True) # Explicit auto-scaling
 )
 st.plotly_chart(fig, use_container_width=True)
 
