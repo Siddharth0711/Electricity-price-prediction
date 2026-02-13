@@ -20,6 +20,10 @@ st.markdown("""
     .main {
         background-color: #f8fafc;
     }
+    div[data-testid="stMetricLabel"] {
+        color: #475569 !important;
+        font-weight: 500 !important;
+    }
     div[data-testid="stMetricValue"] {
         font-size: 28px;
         color: #1e293b;
