@@ -41,6 +41,32 @@ st.markdown("""
         display: flex;
         flex-direction: column;
         justify-content: center;
+        position: relative;
+    }
+    .metric-help {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        cursor: pointer;
+        color: #94a3b8;
+        font-size: 14px;
+        font-weight: bold;
+    }
+    .metric-help:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 110%;
+        right: 0;
+        background: #1e293b;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 11px;
+        width: 180px;
+        z-index: 1000;
+        font-weight: 500;
+        line-height: 1.4;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
     .metric-label {
         color: #64748b !important;
@@ -72,14 +98,17 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Helper function
-def custom_card(label, value, delta=None, delta_up=False, subtext=None):
+def custom_card(label, value, delta=None, delta_up=False, subtext=None, help_text=None):
     delta_html = ""
     if delta:
         color = "#ef4444" if delta_up else "#10b981"
         symbol = "▲" if delta_up else "▼"
         delta_html = f"<div class='metric-delta' style='color: {color};'>{symbol} {delta}</div>"
+    
+    help_html = f"<div class='metric-help' data-tooltip='{help_text}'>?</div>" if help_text else ""
     subtext_html = f"<div class='metric-subtext'>{subtext}</div>" if subtext else ""
-    st.markdown(f"""<div class="metric-card"><div class="metric-label">{label}</div><div class="metric-value">{value}</div>{delta_html}{subtext_html}</div>""", unsafe_allow_html=True)
+    
+    st.markdown(f"""<div class="metric-card">{help_html}<div class="metric-label">{label}</div><div class="metric-value">{value}</div>{delta_html}{subtext_html}</div>""", unsafe_allow_html=True)
 
 # Hub Data Base - National Aggregate Portfolio
 SOLAR_HUBS = {
@@ -235,16 +264,28 @@ st.markdown(f"#### Day-Ahead Market (DAM) Planning | Serve: {st.session_state.di
 st.markdown("### 📈 Live Market Clearing Components")
 col1, col2, col3, col4 = st.columns(4)
 
-with col1: custom_card("Uniform MCP", f"₹{st.session_state.live_mcp:.2f}", subtext="Cleared Price (INR/MWh)")
-with col2: custom_card("Market Volume (MCV)", f"{st.session_state.live_mcv:,.0f} MW", subtext="Total Cleared Quantity")
+with col1: 
+    custom_card("Uniform MCP", f"₹{st.session_state.live_mcp:.2f}", 
+                subtext="Cleared Price (INR/MWh)",
+                help_text="Marker Clearing Price. The uniform price where aggregate supply bids meet demand bids. Fetched live from the IEX Provisional DAM portal.")
+
+with col2: 
+    custom_card("Market Volume (MCV)", f"{st.session_state.live_mcv:,.0f} MW", 
+                subtext="Total Cleared Quantity",
+                help_text="Market Clearing Volume. Total quantity of electricity (in MW) successfully traded/cleared in this block. Fetched live from IEX.")
+
 with col3:
     diff = next_price - st.session_state.live_mcp
-    custom_card("T+1 Price Forecast", f"₹{next_price:.2f}", delta=f"{abs(diff):.2f}", delta_up=diff > 0)
+    custom_card("T+1 Price Forecast", f"₹{next_price:.2f}", 
+                delta=f"{abs(diff):.2f}", delta_up=diff > 0,
+                help_text="Predicted price for the next 15-min block. Calculated by our XG Boost model considering national supply clusters and grid demand.")
+
 with col4:
-    if diff < -2.0: sig, col = "BUY BID", "#10b981"
-    elif diff > 2.0: sig, col = "SELL BID", "#ef4444"
-    else: sig, col = "HOLD", "#64748b"
-    st.markdown(f"""<div class="strategy-container" style="background-color: {col}; font-weight:800; color:white;">{sig}</div>""", unsafe_allow_html=True)
+    if diff < -2.0: sig, col, htip = "BUY BID", "#10b981", "Model suggests buying due to predicted price drops from renewable surplus."
+    elif diff > 2.0: sig, col, htip = "SELL BID", "#ef4444", "Model suggests selling/reducing demand due to predicted price spikes."
+    else: sig, col, htip = "HOLD", "#64748b", "Market stable. No immediate bidding action recommended."
+    
+    custom_card("Strategic Plan", sig, help_text=htip)
 
 st.markdown("---")
 
