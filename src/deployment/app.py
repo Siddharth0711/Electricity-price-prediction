@@ -290,4 +290,20 @@ fig.update_layout(height=400, template="plotly_white", margin=dict(l=50, r=50, t
 st.plotly_chart(fig, use_container_width=True)
 
 st.info("💡 **IEX DAM Model Bridge**: We simulate the **Auction Mechanism** by balancing **Purchase Bids** against **Sell Bids**.")
+
+with st.expander("🎓 **IEX Bidding Strategy Lab**: Single vs. Block Bids"):
+    st.markdown("""
+    ### Understanding Market Participation Types
+    When submitting bids to the Indian Energy Exchange (IEX), participants use different bid types based on their technical constraints.
+    
+    | Feature | **Single Bid (Portfolio)** | **Block Bid (All-or-None)** |
+    | :--- | :--- | :--- |
+    | **Time Period** | Individual 15-min blocks | Continuous set of blocks (e.g. 4 hrs) |
+    | **Execution** | Partial execution allowed | Full quantity or nothing |
+    | **Logic** | Linear interpolation between points | Selected if Avg MCP $\ge$ Bid Price |
+    | **Best For** | Solar, Hydro, Wind | Coal, Thermal, Gas (Baseload) |
+    
+    > **Pro Tip**: Use **Single Bids** for maximum flexibility during solar peak hours, and **Block Bids** to protect thermal plants from infrequent, short-lived price spikes.
+    """)
+
 st.caption(f"Environment: IEX-Production | Market: Unconstrained DAM | Sync: {st.session_state.sync_time} IST")
