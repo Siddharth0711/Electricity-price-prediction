@@ -14,37 +14,50 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS for Premium Look
+# Custom CSS for Premium Look & Universal Visibility
 st.markdown("""
     <style>
-    .main {
-        background-color: #f8fafc;
+    /* Force high contrast for Metric Labels */
+    [data-testid="stMetricLabel"] {
+        color: #0f172a !important;
+        font-weight: 800 !important;
+        opacity: 1 !important;
+        font-size: 16px !important;
     }
-    div[data-testid="stMetricLabel"] {
-        color: #475569 !important;
-        font-weight: 500 !important;
+    
+    /* Force high contrast for Metric Values */
+    [data-testid="stMetricValue"] {
+        color: #1e293b !important;
+        font-weight: 700 !important;
     }
-    div[data-testid="stMetricValue"] {
-        font-size: 28px;
-        color: #1e293b;
+
+    /* Professional Card Container */
+    [data-testid="metric-container"] {
+        background-color: #ffffff !important;
+        padding: 25px !important;
+        border-radius: 12px !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+        border: 2px solid #e2e8f0 !important;
+        color: #1e293b !important;
     }
-    .stMetric {
-        background-color: #ffffff;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-        border: 1px solid #e2e8f0;
-    }
-    .stAlert {
-        border-radius: 10px;
-    }
+
     .recommendation-label {
         font-size: 14px;
-        color: #64748b;
-        font-weight: 600;
+        color: #475569;
+        font-weight: 700;
         margin-bottom: 8px;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.1em;
+    }
+    
+    /* Ensure markdown text in columns is visible */
+    .stMarkdown p {
+        color: #f8fafc;
+    }
+    
+    /* Sidebar headers should be bright */
+    [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+        color: #ffffff !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -59,7 +72,7 @@ SOLAR_HUBS = {
 WIND_HUBS = {
     "Muppandal, Tamil Nadu (Strategic Hub)": {"lat": 8.25, "lon": 77.53, "desc": "India's highest wind capacity. Impacts night-time baseload prices."},
     "Jaisalmer, Rajasthan": {"lat": 26.91, "lon": 70.91, "desc": "High altitude desert wind. Key for evening peaking support."},
-    "Brahmani, Maharashtra": {"lat": 19.49, "zh74.34": 74.34, "desc": "Western grid wind cluster. Crucial for industrial load balancing."}
+    "Brahmani, Maharashtra": {"lat": 19.49, "lon": 74.34, "desc": "Western grid wind cluster. Crucial for industrial load balancing."}
 }
 
 # Helper Functions
@@ -104,8 +117,6 @@ st.sidebar.header("🕹️ Control Center")
 
 # Dynamic Hub Selection
 st.sidebar.subheader("📍 Asset Selection")
-st.sidebar.info("Why these hubs? We monitor 'Strategic Points' that dictate the national supply curve. Choose a hub to adapt the intelligence.")
-
 selected_solar_hub = st.sidebar.selectbox("Solar Monitoring Site", list(SOLAR_HUBS.keys()))
 st.sidebar.caption(SOLAR_HUBS[selected_solar_hub]["desc"])
 
@@ -115,23 +126,18 @@ st.sidebar.caption(WIND_HUBS[selected_wind_hub]["desc"])
 # Live Data Sync Section
 st.sidebar.subheader("🌐 Live Intelligence")
 if st.sidebar.button("Sync Hub Data (Live)"):
-    with st.spinner("Fetching data from selected regional hubs..."):
-        # Solar Hub
+    with st.spinner("Fetching data from regional hubs..."):
         s_loc = SOLAR_HUBS[selected_solar_hub]
         solar_data = fetch_live_weather(s_loc['lat'], s_loc['lon'])
-        if solar_data is not None:
-            st.session_state.temp_val = float(solar_data['temp'])
+        if solar_data is not None: st.session_state.temp_val = float(solar_data['temp'])
         
-        # Wind Hub
         w_loc = WIND_HUBS[selected_wind_hub]
         wind_data = fetch_live_weather(w_loc['lat'], w_loc['lon'])
-        if wind_data is not None:
-            st.session_state.wind_val = float(wind_data['wspd'])
+        if wind_data is not None: st.session_state.wind_val = float(wind_data['wspd'])
         
         st.session_state.live_sync_time = datetime.now().strftime("%H:%M")
-        st.sidebar.success(f"Synced {selected_solar_hub} at {st.session_state.live_sync_time}")
+        st.sidebar.success(f"Synced at {st.session_state.live_sync_time}")
 
-# Engine Selection
 st.sidebar.markdown("---")
 selected_model_name = st.sidebar.selectbox("Prediction Engine", engine_options, index=0 if models else 0)
 
@@ -139,24 +145,20 @@ st.sidebar.subheader("Simulation Overrides")
 if 'temp_val' not in st.session_state: st.session_state.temp_val = 32.0
 if 'wind_val' not in st.session_state: st.session_state.wind_val = 25.0
 
-current_price = st.sidebar.slider("Market entry price (INR/MWh)", 15.0, 150.0, 52.0, help="In a live system, this would be the previous day's closing price or the most recent 15-min clear. Here, use it to set your entry baseline.")
-base_demand = st.sidebar.slider("Grid Demand (MW)", 2000, 8000, 4200, help="Projected national load across all regions.")
+current_price = st.sidebar.slider("Market entry price (INR/MWh)", 15.0, 150.0, 52.0)
+base_demand = st.sidebar.slider("Grid Demand (MW)", 2000, 8000, 4200)
 
-temp_val = st.sidebar.slider(f"{selected_solar_hub.split(',')[0]} Temp °C", 10.0, 50.0, st.session_state.temp_val, key="s_temp")
-wind_val = st.sidebar.slider(f"{selected_wind_hub.split(',')[0]} Wind km/h", 0.0, 60.0, st.session_state.wind_val, key="s_wind")
+temp_val = st.sidebar.slider(f"{selected_solar_hub.split(',')[0]} Temp °C", 10.0, 50.0, st.session_state.temp_val)
+wind_val = st.sidebar.slider(f"{selected_wind_hub.split(',')[0]} Wind km/h", 0.0, 60.0, st.session_state.wind_val)
 
 # Prediction Logic
 def get_prediction_data(price, demand, temp, wind):
     blocks = np.arange(1, 97)
-    # Solar Surge
     solar_peak_strength = (temp / 45) * 18 
     solar_effect = -solar_peak_strength * np.exp(-((blocks - 50)**2) / 150)
-    # Wind Surplus
     wind_effect = -(wind / 60) * 12
-    # Demand Peaks
     demand_factor = (demand / 6000) * 22
     demand_effect = demand_factor * (np.exp(-((blocks - 35)**2) / 120) + np.exp(-((blocks - 80)**2) / 120))
-    # Base pattern
     base_pattern = price * 0.95 + 4 * np.sin(2 * np.pi * blocks / 96)
     forecast = base_pattern + solar_effect + wind_effect + demand_effect + np.random.normal(0, 0.3, 96)
     forecast = np.maximum(forecast, 15.0)
@@ -167,11 +169,6 @@ blocks, forecast_data, next_block_price, solar_peak_strength = get_prediction_da
 )
 
 # UI Elements
-if selected_model_name == "Strategy Simulation (Fallback)":
-    st.warning("⚠️ **Mode: Physics-Informed Simulation.**")
-else:
-    st.success(f"✅ **Mode: {selected_model_name} Active.**")
-
 st.markdown("### 📈 Market Pulse")
 col1, col2, col3, col4 = st.columns(4)
 
@@ -179,53 +176,70 @@ price_diff = next_block_price - current_price
 price_delta_color = "inverse" if price_diff > 0 else "normal"
 
 with col1:
-    st.metric("T-Entry Price", f"₹{current_price:.2f}", help="Starting baseline for this simulation.")
+    st.metric("T-ENTRY PRICE", f"₹{current_price:.2f}")
 with col2:
-    st.metric("T+1 Core Forecast", f"₹{next_block_price:.2f}", delta=f"{price_diff:.2f}", help="AI prediction for the very next 15-min interval.")
+    st.metric("T+1 FORECAST", f"₹{next_block_price:.2f}", delta=f"{price_diff:.2f}", delta_color=price_delta_color)
 
 if price_diff < -1.5:
-    signal, color, confidence, desc = "BUY", "#10b981", "HIGH", "Price crash ahead. Accumulate positions."
+    signal, color, confidence = "BUY", "#10b981", "HIGH"
 elif price_diff > 1.5:
-    signal, color, confidence, desc = "SELL", "#ef4444", "EXTREME", "Price spike detected. Liquidate holdings."
+    signal, color, confidence = "SELL", "#ef4444", "EXTREME"
 else:
-    signal, color, confidence, desc = "HOLD", "#64748b", "MODERATE", "Stable market. No immediate action."
+    signal, color, confidence = "HOLD", "#64748b", "MODERATE"
 
 with col3:
-    st.markdown("<div class='recommendation-label'>Strategy Recommendation</div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='background-color: {color}; color: white; padding: 12px 20px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'>{signal}</div>", unsafe_allow_html=True)
-    st.caption(desc)
+    st.markdown("<div class='recommendation-label'>Strategy Signal</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='background-color: {color}; color: white; padding: 12px 20px; border-radius: 8px; text-align: center; font-weight: 800; font-size: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'>{signal}</div>", unsafe_allow_html=True)
 with col4:
-    st.metric("Confidence Score", confidence)
+    st.metric("CONFIDENCE", confidence)
 
 st.markdown("---")
 
 # Main Visualization
-st.subheader(f"📊 {selected_solar_hub.split(',')[0]} & {selected_wind_hub.split(',')[0]} Impact Trajectory")
+st.subheader(f"📊 Impact Trajectory: {selected_solar_hub.split(',')[0]}")
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=blocks, y=forecast_data, mode='lines', name='Forecasted Price', line=dict(color='#3b82f6', width=3), fill='tozeroy', fillcolor='rgba(59, 130, 246, 0.05)'))
-fig.add_hline(y=current_price, line_dash="dash", line_color="#f59e0b", annotation_text="Market Entry Baseline")
-fig.update_layout(xaxis_title="Market Block (15-min Intervals)", yaxis_title="Price (INR/MWh)", hovermode="x unified", margin=dict(l=40, r=40, t=20, b=40), height=480, paper_bgcolor='white', plot_bgcolor='white')
-fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#f1f5f9')
-fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#f1f5f9')
+fig.add_trace(go.Scatter(x=blocks, y=forecast_data, mode='lines', name='Forecasted Price', 
+                         line=dict(color='#3b82f6', width=4), fill='tozeroy', fillcolor='rgba(59, 130, 246, 0.1)'))
+
+fig.add_hline(y=current_price, line_dash="dash", line_color="#f59e0b", annotation_text="Baseline Price", 
+              annotation_font_color="#f59e0b", annotation_position="top left")
+
+fig.update_layout(
+    xaxis_title="Market Block (15-min Intervals)",
+    yaxis_title="Price (INR/MWh)",
+    hovermode="x unified",
+    margin=dict(l=50, r=50, t=30, b=50),
+    height=500,
+    paper_bgcolor='white',
+    plot_bgcolor='white',
+    # FORCE HIGH CONTRAST FONT COLORS
+    font=dict(color="#0f172a", size=14),
+    xaxis=dict(
+        tickfont=dict(color="#0f172a", size=12),
+        title=dict(font=dict(color="#0f172a")),
+        gridcolor="#e2e8f0",
+        linecolor="#0f172a",
+        zerolinecolor="#0f172a"
+    ),
+    yaxis=dict(
+        tickfont=dict(color="#0f172a", size=12),
+        title=dict(font=dict(color="#0f172a")),
+        gridcolor="#e2e8f0",
+        linecolor="#0f172a",
+        range=[0, max(max(forecast_data), current_price) + 20]
+    )
+)
 st.plotly_chart(fig, use_container_width=True)
 
 # Market Intelligence
-st.markdown("### 🔍 Strategic Differentiators")
+st.markdown("### 🔍 Strategic Insight Output")
 i_col1, i_col2 = st.columns(2)
-
 with i_col1:
-    st.info(f"""
-    **Why {selected_solar_hub.split(',')[0]}?**: {SOLAR_HUBS[selected_solar_hub]['desc']}
-    Current temp of {temp_val:.1f}°C is driving a **{solar_peak_strength:.1f} INR** suppression in the midday supply curve.
-    """)
-
+    st.info(f"**Solar Dynamic**: High thermal efficiency at {temp_val:.1f}°C in {selected_solar_hub.split(',')[0]} is creating a ₹{solar_peak_strength:.1f} discount in midday blocks.")
 with i_col2:
-    if wind_val < 15:
-        st.warning(f"**Renewable Risk**: Wind speeds at {selected_wind_hub.split(',')[0]} ({wind_val:.1f} km/h) are low. Expect high thermal reliance.")
-    else:
-        st.success(f"**Baseload Stability**: Wind hubs at {selected_wind_hub.split(',')[0]} are performing optimally at {wind_val:.1f} km/h.")
+    if wind_val < 15: st.warning(f"**Wind Alert**: Low speeds ({wind_val:.1f} km/h) at {selected_wind_hub.split(',')[0]} may trigger thermal spikes.")
+    else: st.success(f"**Grid Balance**: Optimal wind generation at {selected_wind_hub.split(',')[0]} is stabilizing the baseload.")
 
 # Footer
 st.markdown("---")
-st.markdown(f"<div style='text-align: center; color: #64748b;'>Environment: Production | Backend: FastAPI | CRISP-ML(Q) Audited | Status: Mission Critical</div>", unsafe_allow_html=True)
-st.caption(f"Last Intelligence Sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.markdown(f"<p style='text-align: center; color: #cbd5e1;'>CRISP-ML(Q) Audited | Session: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>", unsafe_allow_html=True)
