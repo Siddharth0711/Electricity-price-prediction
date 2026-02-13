@@ -22,8 +22,7 @@ class IEXScraper:
 
     def fetch_provisional_dam(self):
         """
-        Fetches provisional DAM data (MCP and MCV) from the iexrtmprice portal.
-        Returns a tuple: (DataFrame, MarketDate)
+        Fetches provisional DAM data (Price and Volume) from the portal.
         """
         try:
             logger.info(f"Fetching provisional DAM data from {self.provisional_url}")
@@ -32,102 +31,75 @@ class IEXScraper:
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Extract Market Date from h1 (e.g., "Unconstrained DAM Data for 14-02-2026")
-            market_date = "N/A"
+            # Extract Market Date (Default to tomorrow for DAM if missing)
+            market_date = (datetime.now() + timedelta(days=1)).strftime("%d-%m-%Y")
             h1 = soup.find('h1')
             if h1:
                 h1_text = h1.get_text(strip=True)
                 if 'for' in h1_text:
                     market_date = h1_text.split('for')[-1].strip()
             
-            # Look for the table in the content
             table = soup.find('table')
-            if not table:
-                logger.warning("No table found on the provisional data page.")
-                return None, market_date
+            if not table: return None, market_date
             
-            # Parse table rows
             rows = []
             for tr in table.find_all('tr'):
                 cells = [td.get_text(strip=True) for td in tr.find_all(['td', 'th'])]
-                if cells:
-                    rows.append(cells)
+                if cells: rows.append(cells)
             
-            if not rows:
-                return None, market_date
-                
-            # Convert to DataFrame
+            if not rows: return None, market_date
+            
             df = pd.DataFrame(rows[1:], columns=rows[0])
             
-            # Robust Column Cleaning
-            def clean_header(h):
-                h = h.upper()
+            # Clean Headers
+            def clean_h(h):
+                h = str(h).upper()
                 if 'MCP' in h: return 'MCP'
                 if 'MCV' in h: return 'MCV'
-                if any(x in h for x in ['BLOCK', 'TIME', 'INTERVAL', 'PERIOD']): return 'BLOCK'
+                if any(x in h for x in ['BLOCK', 'TIME', 'INTERVAL']): return 'BLOCK'
                 return h
+            df.columns = [clean_h(c) for c in df.columns]
             
-            df.columns = [clean_header(c) for c in df.columns]
-            
-            # Ensure BLOCK column exists
-            if 'BLOCK' not in df.columns:
-                # Fallback: find any col with ' - ' in first few rows
-                for col in df.columns:
-                    if df[col].astype(str).str.contains(' - ').any():
-                        df = df.rename(columns={col: 'BLOCK'})
-                        break
-
-            # Drop rows where MCP or MCV are non-numeric
+            # Clean Data
             if 'MCP' in df.columns: df['MCP'] = pd.to_numeric(df['MCP'], errors='coerce')
             if 'MCV' in df.columns: df['MCV'] = pd.to_numeric(df['MCV'], errors='coerce')
             
-            # Filter out known statistical rows
-            exclude = ['MIN', 'MAX', 'AVERAGE', 'SUM', 'TOTAL', 'UNCONSTRAINED']
+            # Filter rows (exclude summary statistcs and keep only HH:MM patterns)
+            exclude = ['MIN', 'MAX', 'AVERAGE', 'SUM', 'TOTAL', 'UNCONSTRAINED', 'CONSTRAINED']
             df = df[~df['BLOCK'].astype(str).str.upper().isin(exclude)]
-            # Keep only rows that look like time ranges (HH:MM - HH:MM)
-            # Relaxed regex to handle potential single-digit hours or varying whitespace
             df = df[df['BLOCK'].astype(str).str.contains(r'\d{1,2}:\d{2}', na=False)]
                 
-            return df, market_date
+            return df.dropna(subset=['MCP']), market_date
 
         except Exception as e:
-            logger.error(f"Error fetching provisional DAM data: {e}")
+            logger.error(f"Scraper Error: {e}")
             return None, "Error"
 
     def get_latest_market_data(self):
         """
-        High-level method to get MCP, MCV and Block timing.
-        Returns a tuple: (Price/MCP, Volume/MCV, BlockTime, MarketDate)
+        Returns (MCP, MCV, Block, Date) for the block matching CURRENT IST time.
         """
         df, market_date = self.fetch_provisional_dam()
         if df is not None and not df.empty:
-            # Filter out summary rows (Min, Max, Avg, Sum)
-            # Valid blocks have ' - ' and HH:MM pattern
-            valid_blocks = df[df['BLOCK'].str.contains(':', na=False)]
-            # Also exclude rows that are explicitly statistical
-            exclude = ['MIN', 'MAX', 'AVERAGE', 'SUM', 'TOTAL']
-            valid_blocks = valid_blocks[~valid_blocks['BLOCK'].str.upper().isin(exclude)]
+            # Match current clock time to the correct 15-min block
+            now = datetime.now() + timedelta(hours=5, minutes=30)
+            target_start = f"{now.hour:02d}:{(now.minute // 15) * 15:02d}"
             
-            if not valid_blocks.empty:
-                latest = valid_blocks.iloc[-1]
-                mcp = latest['MCP']
-                mcv = latest['MCV']
-                block = latest['BLOCK']
-                return mcp, mcv, block, market_date
-        
-        return None, None, "N/A", market_date
+            match = df[df['BLOCK'].astype(str).str.startswith(target_start)]
+            row = match.iloc[0] if not match.empty else df.iloc[-1]
+            
+            try:
+                mcp = float(row['MCP'])
+                mcv = float(row['MCV'])
+                return mcp, mcv, str(row['BLOCK']), market_date
+            except Exception: pass
+            
+        return None, None, "Syncing...", market_date
 
     def get_latest_mcp(self):
-        """Legacy alias for backward compatibility."""
-        mcp, _, _, date = self.get_latest_market_data()
-        return mcp, date
+        res = self.get_latest_market_data()
+        return res[0], res[3]
 
 if __name__ == "__main__":
-    scraper = IEXScraper()
-    df, m_date = scraper.fetch_provisional_dam()
-    if df is not None:
-        print(f"Latest IEX Provisional Data Scan for {m_date}:")
-        print(df.head())
-        print(f"\nMarket Summary: {scraper.get_latest_market_data()}")
-    else:
-        print("Failed to fetch data.")
+    s = IEXScraper()
+    print(f"Sync Test: {s.get_latest_market_data()}")
