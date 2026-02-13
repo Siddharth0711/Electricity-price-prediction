@@ -25,9 +25,9 @@ data/processed/*.csv
 !data/processed/.gitkeep
 
 # Model files
-models/*.pkl
-models/*.h5
-models/*.pt
+# models/*.pkl
+# models/*.h5
+# models/*.pt
 !models/.gitkeep
 
 # Output files
