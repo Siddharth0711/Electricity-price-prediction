@@ -83,24 +83,24 @@ class IEXScraper:
             logger.error(f"Error fetching provisional DAM data: {e}")
             return None, "Error"
 
-    def get_latest_mcp(self):
+    def get_latest_market_data(self):
         """
-        High-level method to get the latest available MCP and its delivery date.
-        Returns a tuple: (Price, MarketDate)
+        High-level method to get both MCP and MCV.
+        Returns a tuple: (Price/MCP, Volume/MCV, MarketDate)
         """
         df, market_date = self.fetch_provisional_dam()
         if df is not None and not df.empty:
-            mcp_col = [c for c in df.columns if 'MCP' in c.upper()][0]
-            latest_val = df[mcp_col].iloc[-1]
-            return latest_val, market_date
-        return None, market_date
+            mcp = df['MCP'].iloc[-1] if 'MCP' in df.columns else None
+            mcv = df['MCV'].iloc[-1] if 'MCV' in df.columns else None
+            return mcp, mcv, market_date
+        return None, None, market_date
 
 if __name__ == "__main__":
     scraper = IEXScraper()
-    data = scraper.fetch_provisional_dam()
-    if data is not None:
-        print("Latest IEX Provisional Data Scan:")
-        print(data.head())
-        print(f"\nLatest MCP: {scraper.get_latest_mcp()}")
+    df, m_date = scraper.fetch_provisional_dam()
+    if df is not None:
+        print(f"Latest IEX Provisional Data Scan for {m_date}:")
+        print(df.head())
+        print(f"\nMarket Summary: {scraper.get_latest_market_data()}")
     else:
         print("Failed to fetch data.")
