@@ -169,7 +169,6 @@ with st.spinner("Syncing National Grid Aggregate..."):
             st.session_state.live_mcp, st.session_state.m_date = float(res[0]), str(res[1])
         else:
             st.session_state.live_mcp, st.session_state.m_date = float(res), "N/A"
-        st.session_state.sync_time = datetime.now().strftime("%H:%M:%S")
 
     # Sync ALL Solar Hubs
     for name, loc in SOLAR_HUBS.items():
@@ -191,6 +190,9 @@ with st.spinner("Syncing National Grid Aggregate..."):
         st.session_state.local_wind = float(d_data['wspd'])
     else:
         st.session_state.local_temp, st.session_state.local_wind = 30.0, 10.0
+
+    # Finalize Sync Timestamp in IST (UTC+5:30)
+    st.session_state.sync_time = (datetime.now() + timedelta(hours=5, minutes=30)).strftime("%H:%M:%S")
 
 st.sidebar.success(f"🚀 Live Market: ₹{st.session_state.get('live_mcp', 0):.2f}")
 st.sidebar.caption(f"Last Aggregate Sync: {st.session_state.get('sync_time', 'Pending')}")
