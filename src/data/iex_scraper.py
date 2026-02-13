@@ -82,7 +82,14 @@ class IEXScraper:
         df, market_date = self.fetch_provisional_dam()
         if df is not None and not df.empty:
             # Match current clock time to the correct 15-min block
-            now = datetime.now() + timedelta(hours=5, minutes=30)
+            now = datetime.now()
+            # If server is in UTC (likely on Cloud), shift to IST
+            # Indian Market is active 24/7 in 15-min blocks, but sync is usually in IST
+            # Detect if 'now' is likely UTC (approx 5.5 hours behind IST)
+            # A simpler way is to just assume most cloud hosts are UTC
+            if -1 <= (datetime.utcnow().hour - now.hour) <= 1: 
+                now = now + timedelta(hours=5, minutes=30)
+            
             target_start = f"{now.hour:02d}:{(now.minute // 15) * 15:02d}"
             
             match = df[df['BLOCK'].astype(str).str.startswith(target_start)]
