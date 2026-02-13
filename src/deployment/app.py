@@ -10,6 +10,7 @@ import os
 import sys
 import time
 from streamlit_autorefresh import st_autorefresh
+from geopy.geocoders import Nominatim
 
 # Standardize path for local imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -110,15 +111,7 @@ WIND_HUBS = {
     "Anantapur, AP": {"lat": 14.68, "lon": 77.60}
 }
 
-# Regional Demand Sites (Customer Locations)
-DEMAND_SITES = {
-    "Hyderabad, Telangana": {"lat": 17.38, "lon": 78.48},
-    "Mumbai, Maharashtra": {"lat": 19.07, "lon": 72.87},
-    "Delhi NCR": {"lat": 28.61, "lon": 77.23},
-    "Bangalore, Karnataka": {"lat": 12.97, "lon": 77.59},
-    "Chennai, Tamil Nadu": {"lat": 13.08, "lon": 80.27},
-    "Ahmedabad, Gujarat": {"lat": 23.02, "lon": 72.57}
-}
+# Regional sites logic replaced by universal search
 
 # Helper Functions
 @st.cache_resource
@@ -144,6 +137,16 @@ def fetch_live_weather(lat, lon):
     except Exception: pass
     return None
 
+@st.cache_data(ttl=86400)
+def geocode_location(query):
+    try:
+        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v2")
+        location = geolocator.geocode(f"{query}, India", timeout=10)
+        if location:
+            return location.latitude, location.longitude, location.address
+    except Exception: pass
+    return None
+
 def get_iex_instance():
     return IEXScraper() if IEXScraper else None
 
@@ -152,7 +155,22 @@ st.sidebar.header("🕹️ Global Production Control")
 st_autorefresh(interval=60 * 1000, key="iex_auto_refresh")
 
 # 1. Customer Context
-selected_site = st.sidebar.selectbox("Customer Plant Location", list(DEMAND_SITES.keys()))
+# 1. Universal Customer Context
+st.sidebar.subheader("📍 Customer Strategy Site")
+city_query = st.sidebar.text_input("Enter Plant City/Site (All-India)", value="Hyderabad", help="Type any city, town or district in India.")
+
+# Geocode logic
+geo_result = geocode_location(city_query)
+if geo_result:
+    lat, lon, full_address = geo_result
+    st.session_state.local_lat = lat
+    st.session_state.local_lon = lon
+    st.session_state.display_city = city_query.split(',')[0].strip().title()
+    st.sidebar.success(f"📍 Location Locked: {st.session_state.display_city}")
+else:
+    st.session_state.local_lat, st.session_state.local_lon = 17.38, 78.48 
+    st.session_state.display_city = "Hyderabad"
+    st.sidebar.warning("Search failed. Defaulting to Hyderabad.")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🌐 National Intelligence Sync")
@@ -183,8 +201,7 @@ with st.spinner("Syncing National Grid Aggregate..."):
         else: st.session_state.hub_data[f"wind_{name}"] = 15.0 # Fallback
     
     # Sync Local Demand Site Weather
-    d_loc = DEMAND_SITES[selected_site]
-    d_data = fetch_live_weather(d_loc['lat'], d_loc['lon'])
+    d_data = fetch_live_weather(st.session_state.local_lat, st.session_state.local_lon)
     if d_data is not None:
         st.session_state.local_temp = float(d_data['temp'])
         st.session_state.local_wind = float(d_data['wspd'])
@@ -235,7 +252,7 @@ blocks, forecast_data, next_price = get_national_forecast(st.session_state.live_
 
 # --- DASHBOARD UI ---
 st.title("⚡ Electricity Price Strategy Dashboard")
-st.markdown(f"#### Production Terminal | National Aggregate Model | Serving: {selected_site}")
+st.markdown(f"#### Production Terminal | National Aggregate Model | Serving: {st.session_state.display_city}")
 
 st.markdown("### 📈 Market Pulse (National)")
 col1, col2, col3, col4 = st.columns(4)
@@ -257,7 +274,7 @@ with col4: custom_card("Hub Confidence", conf, subtext="Ensemble Verification Ac
 st.markdown("---")
 
 # Visual Context
-st.subheader(f"📊 National Market Trajectory (Relative to {selected_site})")
+st.subheader(f"📊 National Market Trajectory (Relative to {st.session_state.display_city})")
 fig = go.Figure()
 time_labels = [(datetime(2026, 1, 1) + timedelta(minutes=15 * (int(b)-1))).strftime('%H:%M') for b in blocks]
 
@@ -276,11 +293,11 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown("### 🏭 Local Plant Context")
 l1, l2, l3 = st.columns(3)
 
-with l1: st.info(f"**Location**: {selected_site}\n\n**Local Temp**: {st.session_state.local_temp:.1f}°C\n\nStrategic Note: High temp may increase HVAC load during peak MCP pricing.")
+with l1: st.info(f"**Location**: {st.session_state.display_city}\n\n**Local Temp**: {st.session_state.local_temp:.1f}°C\n\nStrategic Note: High temp may increase HVAC load during peak MCP pricing.")
 with l2: 
     if st.session_state.local_temp > 35: st.warning("**Efficiency Alert**: High local ambient temperature detected. Plant HVAC demand may spike.")
     else: st.success("**Optimal Ops**: Local weather is moderate. Baseload HVAC demand remains stable.")
 with l3: st.info(f"**Market Context**: Predictor summates solar impact from {len(SOLAR_HUBS)} hubs and wind from {len(WIND_HUBS)} national clusters.")
 
 st.markdown("---")
-st.caption(f"System: Aggregate Intelligence Portfolio (AIP) | Location: {selected_site} | Sync: {st.session_state.sync_time}")
+st.caption(f"System: Aggregate Intelligence Portfolio (AIP) | Location: {st.session_state.display_city} | Sync: {st.session_state.sync_time}")
