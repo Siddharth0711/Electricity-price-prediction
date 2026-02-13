@@ -26,7 +26,10 @@ class IEXScraper:
         """
         try:
             logger.info(f"Fetching provisional DAM data from {self.provisional_url}")
-            response = requests.get(self.provisional_url, headers=self.headers, timeout=15)
+            # Use verify=False for mirror site compatibility (handles legacy SSL certs)
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            response = requests.get(self.provisional_url, headers=self.headers, timeout=12, verify=False)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')

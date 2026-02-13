@@ -116,35 +116,11 @@ def custom_card(label, value, delta=None, delta_up=False, subtext=None, help_tex
     
     st.markdown(f"""<div class="metric-card">{help_html}<div class="metric-label">{label}</div><div class="metric-value">{value}</div>{delta_html}{subtext_html}</div>""", unsafe_allow_html=True)
 
-# Hub Data Base - National Aggregate Portfolio
-SOLAR_HUBS = {
-    "Bhadla, Rajasthan": {"lat": 27.53, "lon": 72.35},
-    "Pavagada, Karnataka": {"lat": 14.28, "lon": 77.29},
-    "Kurnool, AP": {"lat": 15.54, "lon": 78.27},
-    "Rewa, MP": {"lat": 24.53, "lon": 81.30},
-    "Charanka, Gujarat": {"lat": 23.91, "lon": 71.20}
-}
-WIND_HUBS = {
-    "Muppandal, TN": {"lat": 8.25, "lon": 77.53},
-    "Jaisalmer, Rajasthan": {"lat": 26.91, "lon": 70.91},
-    "Brahmani, Maharashtra": {"lat": 19.49, "lon": 74.34},
-    "Kutch, Gujarat": {"lat": 23.36, "lon": 69.83},
-    "Anantapur, AP": {"lat": 14.68, "lon": 77.60}
-}
+# Hub Data Base
+SOLAR_HUBS = {"Bhadla, RJ": {"lat": 27.53, "lon": 72.35}, "Pavagada, KA": {"lat": 14.28, "lon": 77.29}, "Kurnool, AP": {"lat": 15.54, "lon": 78.27}}
+WIND_HUBS = {"Muppandal, TN": {"lat": 8.25, "lon": 77.53}, "Jaisalmer, RJ": {"lat": 26.91, "lon": 70.91}}
 
-# Suggestions whitelists
-MAJOR_INDIAN_CITIES = ["Hyderabad, Telangana", "Mumbai, Maharashtra", "Delhi, NCR", "Bangalore, Karnataka", "Chennai, Tamil Nadu", "Ahmedabad, Gujarat"]
-
-# Helper Functions
-@st.cache_resource
-def load_models():
-    models = {}
-    model_paths = {"XG Boost": "models/xgboost_best.pkl", "Linear": "models/linear_regression_best.pkl"}
-    for name, path in model_paths.items():
-        if Path(path).exists():
-            try: models[name] = joblib.load(path)
-            except Exception: pass
-    return models
+MAJOR_INDIAN_CITIES = ["Hyderabad, TS", "Mumbai, MH", "Delhi, NCR", "Bangalore, KA", "Chennai, TN"]
 
 @st.cache_data(ttl=3600)
 def fetch_live_weather(lat, lon):
@@ -162,7 +138,7 @@ def fetch_live_weather(lat, lon):
 @st.cache_data(ttl=86400)
 def geocode_location(query):
     try:
-        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v5")
+        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v6")
         location = geolocator.geocode(f"{query}, India", timeout=10, addressdetails=True)
         if location:
             addr = location.raw.get('address', {})
@@ -180,18 +156,12 @@ st_autorefresh(interval=60 * 1000, key="iex_auto_refresh")
 
 # 1. Universal Customer Context
 st.sidebar.subheader("📍 Customer Strategy Site")
-search_mode = st.sidebar.radio("Search Mode", ["Select from List", "Custom Type"], horizontal=True, label_visibility="collapsed")
-if search_mode == "Select from List":
-    city_query = st.sidebar.selectbox("Choose City", MAJOR_INDIAN_CITIES)
-else:
-    city_query = st.sidebar.text_input("Type Any City/Town", value="Hyderabad")
-
+city_query = st.sidebar.text_input("Site Location (City/Town)", value="Hyderabad")
 if city_query:
     geo_result = geocode_location(city_query)
     if geo_result:
         lat, lon, dn = geo_result
         st.session_state.local_lat, st.session_state.local_lon, st.session_state.display_city = lat, lon, dn
-        st.sidebar.success(f"✅ Locked: {dn}")
     else:
         st.session_state.local_lat, st.session_state.local_lon = 17.38, 78.48
         st.session_state.display_city = "Hyderabad, Telangana"
@@ -199,16 +169,12 @@ if city_query:
 st.sidebar.markdown("---")
 st.sidebar.subheader("🌐 IEX DAM Live Synchronization")
 
-if 'hub_data' not in st.session_state: st.session_state.hub_data = {}
-
 with st.spinner("Syncing IEX Market Dynamics..."):
     scraper = get_iex_instance()
-    
-    # Priority: Retain previous session state to avoid flickers
     mcp = st.session_state.get('live_mcp', 2840.5) 
     mcv = st.session_state.get('live_mcv', 6278.5)
     m_date = st.session_state.get('m_date', '14-02-2026')
-    m_block = st.session_state.get('m_block', 'Initializing...')
+    m_block = st.session_state.get('m_block', 'Syncing IST...')
 
     if scraper:
         try:
@@ -219,43 +185,27 @@ with st.spinner("Syncing IEX Market Dynamics..."):
                 elif len(res) == 3:
                     _mcp, _mcv, _date = res
                     _block = "0:00 - 24:00"
-                
-                if _mcp:
-                    mcp, mcv, m_block, m_date = _mcp, _mcv, _block, _date
-        except Exception: pass
+                if _mcp: mcp, mcv, m_block, m_date = _mcp, _mcv, _block, _date
+            else:
+                st.sidebar.warning("⚠️ Market Sync Delay: Using session fallback.")
+        except Exception as e: 
+            st.sidebar.error(f"Sync Error: {str(e)[:40]}")
     
-    st.session_state.live_mcp = float(mcp)
-    st.session_state.live_mcv = float(mcv)
-    st.session_state.m_date = str(m_date)
-    st.session_state.m_block = str(m_block) if (m_block and ":" in str(m_block)) else "00:00 - 24:00"
-    
-    # Sync National Renewables
-    for name, loc in SOLAR_HUBS.items():
-        st.session_state.hub_data[f"solar_{name}"] = 32.0 # Standard fallback
-    for name, loc in WIND_HUBS.items():
-        st.session_state.hub_data[f"wind_{name}"] = 15.0 # Standard fallback
-        
-    st.session_state.local_temp = 30.0
+    st.session_state.live_mcp, st.session_state.live_mcv = float(mcp), float(mcv)
+    st.session_state.m_date, st.session_state.m_block = str(m_date), str(m_block)
     st.session_state.sync_time = (datetime.now() + timedelta(hours=5, minutes=30)).strftime("%H:%M:%S")
 
 st.sidebar.info(f"Market Date: {st.session_state.m_date}")
 st.sidebar.caption(f"Last IST Sync: {st.session_state.sync_time}")
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📊 Market Mechanism Adjustments")
+st.sidebar.subheader("📊 Market Parameters")
 p_bids = st.sidebar.slider("Purchase Bids (MW Demand)", 5000, 30000, 18000)
-st.sidebar.info("💡 Hub Intelligence acts as 'Sell Bid' proxies based on live renewable availability.")
 
-# --- CORE PREDICTION LOGIC ---
 def get_national_forecast(price, volume, demand):
     blocks = np.arange(1, 97)
     scale_factor = max(1.0, price / 150.0)
-    total_solar_effect = np.zeros(96)
-    for name in SOLAR_HUBS.keys():
-        total_solar_effect -= (32 / 60) * 5 * scale_factor * np.exp(-((blocks-50)**2)/150)
-    demand_factor = (demand/30000) * 35 * scale_factor
-    demand_effect = demand_factor * (np.exp(-((blocks-35)**2)/120) + np.exp(-((blocks-80)**2)/120))
-    forecast = (price * 0.98 + 5 * scale_factor * np.sin(2 * np.pi * blocks / 96)) + total_solar_effect + demand_effect
+    forecast = (price * 0.98 + 5 * scale_factor * np.sin(2 * np.pi * blocks / 96)) + (demand/30000)*15
     return blocks, np.maximum(forecast, 15.0), forecast[0]
 
 blocks, forecast_data, next_price = get_national_forecast(st.session_state.live_mcp, st.session_state.live_mcv, p_bids)
@@ -275,10 +225,10 @@ with col3:
     diff = next_price - st.session_state.live_mcp
     custom_card("T+1 Price Forecast", f"₹{next_price:.2f}", delta=f"{abs(diff):.2f}", delta_up=diff > 0, subtext="Target: Next 15-min", help_text="Predicted price for the upcoming interval.")
 with col4:
-    if diff < -2.0: sig, col, htip = "BUY BID", "#10b981", "Model suggests buying due to predicted price drops."
-    elif diff > 2.0: sig, col, htip = "SELL BID", "#f59e0b", "Predicted price spike. Consider reducing demand."
-    else: sig, col, htip = "HOLD", "#ef4444", "Market stable. No immediate action recommended."
-    st.markdown(f"""<div class="strategy-container" style="background-color: {col};"><div style="color: rgba(255,255,255,0.8); font-size: 10px; font-weight: 700; text-transform: uppercase;">Strategic Plan</div><div style="color: white; font-size: 24px; font-weight: 800; margin-top: 4px;">{sig}</div><div style="color: rgba(255,255,255,0.9); font-size: 10px; margin-top: 4px;">{htip[:40]}...</div></div>""", unsafe_allow_html=True)
+    if diff < -2.0: sig, col, htip = "BUY BID", "#10b981", "Model suggests buying."
+    elif diff > 2.0: sig, col, htip = "SELL BID", "#f59e0b", "Predicted price spike."
+    else: sig, col, htip = "HOLD", "#ef4444", "Market stable."
+    st.markdown(f"""<div class="strategy-container" style="background-color: {col};"><div style="color: rgba(255,255,255,0.8); font-size: 10px; font-weight: 700; text-transform: uppercase;">Strategic Plan</div><div style="color: white; font-size: 24px; font-weight: 800; margin-top: 4px;">{sig}</div><div style="color: rgba(255,255,255,0.9); font-size: 10px; margin-top: 4px;">{htip}</div></div>""", unsafe_allow_html=True)
 
 st.markdown("---")
 st.subheader("📊 National Trajectory - 96 Time Blocks (15-min Intervals)")
@@ -289,21 +239,13 @@ fig.add_hline(y=st.session_state.live_mcp, line_dash="dash", line_color="#f59e0b
 fig.update_layout(height=400, template="plotly_white", margin=dict(l=50, r=50, t=30, b=50), xaxis=dict(tickmode='array', tickvals=blocks[::8], ticktext=time_labels[::8]))
 st.plotly_chart(fig, use_container_width=True)
 
-st.info("💡 **IEX DAM Model Bridge**: We simulate the **Auction Mechanism** by balancing **Purchase Bids** against **Sell Bids**.")
-
 with st.expander("🎓 **IEX Bidding Strategy Lab**: Single vs. Block Bids"):
     st.markdown("""
-    ### Understanding Market Participation Types
-    When submitting bids to the Indian Energy Exchange (IEX), participants use different bid types based on their technical constraints.
-    
     | Feature | **Single Bid (Portfolio)** | **Block Bid (All-or-None)** |
     | :--- | :--- | :--- |
-    | **Time Period** | Individual 15-min blocks | Continuous set of blocks (e.g. 4 hrs) |
+    | **Time Period** | Individual 15-min blocks | Continuous set of blocks |
     | **Execution** | Partial execution allowed | Full quantity or nothing |
     | **Logic** | Linear interpolation between points | Selected if Avg MCP $\ge$ Bid Price |
-    | **Best For** | Solar, Hydro, Wind | Coal, Thermal, Gas (Baseload) |
-    
-    > **Pro Tip**: Use **Single Bids** for maximum flexibility during solar peak hours, and **Block Bids** to protect thermal plants from infrequent, short-lived price spikes.
     """)
 
 st.caption(f"Environment: IEX-Production | Market: Unconstrained DAM | Sync: {st.session_state.sync_time} IST")
