@@ -116,29 +116,10 @@ def custom_card(label, value, delta=None, delta_up=False, subtext=None, help_tex
     
     st.markdown(f"""<div class="metric-card">{help_html}<div class="metric-label">{label}</div><div class="metric-value">{value}</div>{delta_html}{subtext_html}</div>""", unsafe_allow_html=True)
 
-# Hub Data Base
-SOLAR_HUBS = {"Bhadla, RJ": {"lat": 27.53, "lon": 72.35}, "Pavagada, KA": {"lat": 14.28, "lon": 77.29}, "Kurnool, AP": {"lat": 15.54, "lon": 78.27}}
-WIND_HUBS = {"Muppandal, TN": {"lat": 8.25, "lon": 77.53}, "Jaisalmer, RJ": {"lat": 26.91, "lon": 70.91}}
-
-MAJOR_INDIAN_CITIES = ["Hyderabad, TS", "Mumbai, MH", "Delhi, NCR", "Bangalore, KA", "Chennai, TN"]
-
-@st.cache_data(ttl=3600)
-def fetch_live_weather(lat, lon):
-    try:
-        end = datetime.now()
-        start = end - timedelta(hours=2)
-        station_df = stations.nearby(Point(lat, lon))
-        if not station_df.empty:
-            s_id = station_df.index[0]
-            data = hourly(s_id, start, end).fetch()
-            if not data.empty: return data.iloc[-1]
-    except Exception: pass
-    return None
-
 @st.cache_data(ttl=86400)
 def geocode_location(query):
     try:
-        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v6")
+        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v7")
         location = geolocator.geocode(f"{query}, India", timeout=10, addressdetails=True)
         if location:
             addr = location.raw.get('address', {})
@@ -171,6 +152,7 @@ st.sidebar.subheader("🌐 IEX DAM Live Synchronization")
 
 with st.spinner("Syncing IEX Market Dynamics..."):
     scraper = get_iex_instance()
+    # Default values for initial load or sync failure
     mcp = st.session_state.get('live_mcp', 2840.5) 
     mcv = st.session_state.get('live_mcv', 6278.5)
     m_date = st.session_state.get('m_date', '14-02-2026')
@@ -178,18 +160,23 @@ with st.spinner("Syncing IEX Market Dynamics..."):
 
     if scraper:
         try:
+            # High-fidelity call to the new time-aligned method
             res = scraper.get_latest_market_data()
             if res and isinstance(res, tuple) and res[0] is not None:
+                # Flexible unpacking for cross-version compatibility
                 if len(res) == 4:
                     _mcp, _mcv, _block, _date = res
                 elif len(res) == 3:
                     _mcp, _mcv, _date = res
                     _block = "0:00 - 24:00"
-                if _mcp: mcp, mcv, m_block, m_date = _mcp, _mcv, _block, _date
+                
+                if _mcp:
+                    mcp, mcv, m_block, m_date = _mcp, _mcv, _block, _date
             else:
                 st.sidebar.warning("⚠️ Market Sync Delay: Using session fallback.")
         except Exception as e: 
-            st.sidebar.error(f"Sync Error: {str(e)[:40]}")
+            # Log exact error without truncation for internal debugging if needed
+            st.sidebar.error(f"Sync Error: {str(e)}")
     
     st.session_state.live_mcp, st.session_state.live_mcv = float(mcp), float(mcv)
     st.session_state.m_date, st.session_state.m_block = str(m_date), str(m_block)
@@ -202,9 +189,11 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("📊 Market Parameters")
 p_bids = st.sidebar.slider("Purchase Bids (MW Demand)", 5000, 30000, 18000)
 
+# --- CORE PREDICTION LOGIC ---
 def get_national_forecast(price, volume, demand):
     blocks = np.arange(1, 97)
     scale_factor = max(1.0, price / 150.0)
+    # Basic illustrative forecast logic
     forecast = (price * 0.98 + 5 * scale_factor * np.sin(2 * np.pi * blocks / 96)) + (demand/30000)*15
     return blocks, np.maximum(forecast, 15.0), forecast[0]
 
