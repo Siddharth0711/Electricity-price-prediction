@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: mcp-forecasting-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.deployment.server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.5

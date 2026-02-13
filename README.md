@@ -83,6 +83,30 @@ FRESH START/
 ### Data Pipeline
 - **data_collector.py**: Ingests weather, energy, and market data
 - **preprocessor.py**: Cleans and validates data
+- **Deployment Ready**: Standardized Docker orchestration and FastAPI REST service.
+- **Monitoring**: Kolmogorov-Smirnov (KS) test for feature and model drift detection.
+
+## 🚀 Deployment
+
+### 1. Local Deployment (FastAPI)
+Run the server locally for development:
+```bash
+uvicorn src.deployment.server:app --reload
+```
+Access the API at `http://localhost:8000`.
+
+### 2. Containerized Deployment (Docker)
+Build and run the container:
+```bash
+docker build -t mcp-forecasting-api .
+docker run -p 8000:8000 mcp-forecasting-api
+```
+
+### 3. Cloud Deployment (Render.com)
+The project is pre-configured for **Render.com**.
+1. Connect this GitHub repository to Render.
+2. Select **Web Service**.
+3. Render will automatically detect `render.yaml` and deploy your API live!
 
 ### Feature Engineering
 - **weather_renewable_mapper.py**: Maps weather to renewable generation
