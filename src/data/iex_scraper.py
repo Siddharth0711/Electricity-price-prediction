@@ -90,10 +90,20 @@ class IEXScraper:
         """
         df, market_date = self.fetch_provisional_dam()
         if df is not None and not df.empty:
-            mcp = df['MCP'].iloc[-1] if 'MCP' in df.columns else None
-            mcv = df['MCV'].iloc[-1] if 'MCV' in df.columns else None
-            block = df['BLOCK'].iloc[-1] if 'BLOCK' in df.columns else "N/A"
-            return mcp, mcv, block, market_date
+            # Filter out summary rows (Min, Max, Avg, Sum)
+            # Valid blocks have ' - ' and HH:MM pattern
+            valid_blocks = df[df['BLOCK'].str.contains(':', na=False)]
+            # Also exclude rows that are explicitly statistical
+            exclude = ['MIN', 'MAX', 'AVERAGE', 'SUM', 'TOTAL']
+            valid_blocks = valid_blocks[~valid_blocks['BLOCK'].str.upper().isin(exclude)]
+            
+            if not valid_blocks.empty:
+                latest = valid_blocks.iloc[-1]
+                mcp = latest['MCP']
+                mcv = latest['MCV']
+                block = latest['BLOCK']
+                return mcp, mcv, block, market_date
+        
         return None, None, "N/A", market_date
 
     def get_latest_mcp(self):
