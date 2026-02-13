@@ -127,6 +127,15 @@ def fetch_live_weather(lat, lon):
     except Exception: pass
     return None
 
+# Helper for IEX Data
+def get_iex_instance():
+    import sys
+    import os
+    # Add project root to path for imports
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+    from src.data.iex_scraper import IEXScraper
+    return IEXScraper()
+
 # Title and Description
 st.title("⚡ Electricity Price Strategy Dashboard")
 st.markdown("#### Strategic Insights for the Indian Day-Ahead Market (DAM)")
@@ -136,14 +145,28 @@ st.sidebar.header("🕹️ Control Center")
 selected_solar_hub = st.sidebar.selectbox("Solar Monitoring Site", list(SOLAR_HUBS.keys()))
 selected_wind_hub = st.sidebar.selectbox("Wind Monitoring Site", list(WIND_HUBS.keys()))
 
-if st.sidebar.button("Sync Hub Data (Live)"):
-    with st.spinner("Fetching data..."):
+st.sidebar.markdown("---")
+st.sidebar.subheader("🌐 Live Data Feeds")
+live_market_feed = st.sidebar.checkbox("🚀 Enable Live IEX Feed", value=False, help="Overrides entry price with real-time data from IEX India.")
+
+if st.sidebar.button("Sync Intelligence (Hubs + IEX)"):
+    with st.spinner("Syncing national hub intelligence..."):
         s_loc, w_loc = SOLAR_HUBS[selected_solar_hub], WIND_HUBS[selected_wind_hub]
         s_data = fetch_live_weather(s_loc['lat'], s_loc['lon'])
         w_data = fetch_live_weather(w_loc['lat'], w_loc['lon'])
         if s_data is not None: st.session_state.temp_val = float(s_data['temp'])
         if w_data is not None: st.session_state.wind_val = float(w_data['wspd'])
-        st.sidebar.success("Synced Hubs Successfully")
+        
+        if live_market_feed:
+            scraper = get_iex_instance()
+            live_mcp = scraper.get_latest_mcp()
+            if live_mcp and not np.isnan(live_mcp):
+                st.session_state.live_mcp = float(live_mcp)
+                st.sidebar.success(f"IEX MCP Synced: ₹{live_mcp:.2f}")
+            else:
+                st.sidebar.error("Could not reach IEX. Check connection.")
+        
+        st.sidebar.success("Weather Hubs Synced Successfully")
 
 st.sidebar.markdown("---")
 models = load_models()
@@ -151,8 +174,17 @@ selected_model_name = st.sidebar.selectbox("Prediction Engine", list(models.keys
 
 if 'temp_val' not in st.session_state: st.session_state.temp_val = 32.0
 if 'wind_val' not in st.session_state: st.session_state.wind_val = 25.0
+if 'live_mcp' not in st.session_state: st.session_state.live_mcp = 52.0
 
-current_price = st.sidebar.slider("Market Entry Price (INR/MWh)", 15.0, 150.0, 52.0)
+# Price Logic (Live vs Simulation)
+if live_market_feed:
+    current_price = st.session_state.live_mcp
+    st.sidebar.info(f"Using Live IEX MCP: ₹{current_price:.2f}")
+    # Show slider but disabled or as a shadow
+    _ = st.sidebar.slider("Market Entry Price (Live Locked)", 15.0, 150.0, current_price, disabled=True)
+else:
+    current_price = st.sidebar.slider("Market Entry Price (INR/MWh)", 15.0, 150.0, st.session_state.live_mcp)
+
 base_demand = st.sidebar.slider("Grid Demand (MW)", 2000, 8000, 4200)
 temp_val = st.sidebar.slider("Ambient Temp °C", 10.0, 50.0, st.session_state.temp_val)
 wind_val = st.sidebar.slider("Wind Speed km/h", 0.0, 60.0, st.session_state.wind_val)
@@ -165,6 +197,7 @@ def get_prediction_data(price, demand, temp, wind):
     wind_effect = -(wind/60) * 12
     demand_factor = (demand/6000) * 22
     demand_effect = demand_factor * (np.exp(-((blocks-35)**2)/120) + np.exp(-((blocks-80)**2)/120))
+    # In live mode, the forecast is relative to the ACTUAL market clearing
     forecast = (price * 0.95 + 4 * np.sin(2 * np.pi * blocks / 96)) + solar_effect + wind_effect + demand_effect + np.random.normal(0,0.3,96)
     forecast = np.maximum(forecast, 15.0)
     return blocks, forecast, forecast[0], solar_peak
