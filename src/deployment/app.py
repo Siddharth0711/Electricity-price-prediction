@@ -63,6 +63,12 @@ st.markdown("""
         font-weight: 600 !important;
         margin-top: 4px !important;
     }
+    .metric-subtext {
+        color: #64748b !important;
+        font-size: 11px !important;
+        margin-top: 6px !important;
+        font-weight: 500 !important;
+    }
     .strategy-container {
         border-radius: 12px;
         padding: 24px;
@@ -84,16 +90,9 @@ def custom_card(label, value, delta=None, delta_up=False, subtext=None):
         symbol = "▲" if delta_up else "▼"
         delta_html = f"<div class='metric-delta' style='color: {color};'>{symbol} {delta}</div>"
     
-    subtext_html = f"<div style='color: #94a3b8; font-size: 11px; margin-top: 4px;'>{subtext}</div>" if subtext else ""
+    subtext_html = f"<div class='metric-subtext'>{subtext}</div>" if subtext else ""
     
-    st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">{label}</div>
-            <div class="metric-value">{value}</div>
-            {delta_html}
-            {subtext_html}
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div class="metric-card"><div class="metric-label">{label}</div><div class="metric-value">{value}</div>{delta_html}{subtext_html}</div>""", unsafe_allow_html=True)
 
 # Hub Data Base
 SOLAR_HUBS = {
