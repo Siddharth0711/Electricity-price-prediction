@@ -253,21 +253,30 @@ st.markdown("---")
 # Viz
 st.subheader(f"📊 Impact Trajectory: {selected_solar_hub.split(',')[0]}")
 fig = go.Figure()
-# REMOVED fill='tozeroy' to allow tight auto-scaling on the y-axis
+
+# Convert blocks (1-96) to time labels
+time_labels = [(datetime(2026, 1, 1) + timedelta(minutes=15 * (int(b)-1))).strftime('%H:%M') for b in blocks]
+
 fig.add_trace(go.Scatter(x=blocks, y=forecast_data, mode='lines', name='Forecasted Price', 
                          line=dict(color='#3b82f6', width=4)))
 fig.add_hline(y=current_price, line_dash="dash", line_color="#f59e0b", annotation_text="Baseline Price")
 
 fig.update_layout(
-    xaxis_title="Market Block (15-min Intervals)",
+    xaxis_title="Delivery Time (HH:MM)",
     yaxis_title="Price (INR/MWh)",
     template="plotly_white",
     hovermode="x unified",
     margin=dict(l=50, r=50, t=30, b=50),
     height=450,
     font=dict(color="#1e293b"),
-    xaxis=dict(gridcolor="#f1f5f9", linecolor="#cbd5e1"),
-    yaxis=dict(gridcolor="#f1f5f9", linecolor="#cbd5e1", autorange=True) # Explicit auto-scaling
+    xaxis=dict(
+        gridcolor="#f1f5f9", 
+        linecolor="#cbd5e1",
+        tickmode='array',
+        tickvals=blocks[::12], # Every 3 hours (12 blocks)
+        ticktext=time_labels[::12]
+    ),
+    yaxis=dict(gridcolor="#f1f5f9", linecolor="#cbd5e1", autorange=True)
 )
 st.plotly_chart(fig, use_container_width=True)
 
