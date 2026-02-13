@@ -140,12 +140,46 @@ def fetch_live_weather(lat, lon):
 @st.cache_data(ttl=86400)
 def geocode_location(query):
     try:
-        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v2")
-        location = geolocator.geocode(f"{query}, India", timeout=10)
+        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v3")
+        # Explicitly ask for address details to get state
+        location = geolocator.geocode(f"{query}, India", timeout=10, addressdetails=True)
         if location:
-            return location.latitude, location.longitude, location.address
+            addr = location.raw.get('address', {})
+            # Try to get city, town, or village
+            city = addr.get('city') or addr.get('town') or addr.get('village') or addr.get('suburb') or query.split(',')[0]
+            state = addr.get('state', 'Unknown')
+            return location.latitude, location.longitude, f"{city}, {state}"
     except Exception: pass
     return None
+
+# Suggested Cities for Autocomplete
+MAJOR_INDIAN_CITIES = [
+    "Hyderabad, Telangana", "Mumbai, Maharashtra", "Delhi, NCR", "Bangalore, Karnataka", 
+    "Chennai, Tamil Nadu", "Kolkata, West Bengal", "Ahmedabad, Gujarat", "Pune, Maharashtra", 
+    "Jaipur, Rajasthan", "Lucknow, Uttar Pradesh", "Kanpur, Uttar Pradesh", "Nagpur, Maharashtra", 
+    "Indore, Madhya Pradesh", "Thane, Maharashtra", "Bhopal, Madhya Pradesh", "Visakhapatnam, Andhra Pradesh", 
+    "Pimpri-Chinchwad, Maharashtra", "Patna, Bihar", "Vadodara, Gujarat", "Ghaziabad, Uttar Pradesh", 
+    "Ludhiana, Punjab", "Agra, Uttar Pradesh", "Nashik, Maharashtra", "Faridabad, Haryana", 
+    "Meerut, Uttar Pradesh", "Rajkot, Gujarat", "Kalyan-Dombivli, Maharashtra", "Vasai-Virar, Maharashtra", 
+    "Varanasi, Uttar Pradesh", "Srinagar, Jammu and Kashmir", "Aurangabad, Maharashtra", "Dhanbad, Jharkhand", 
+    "Amritsar, Punjab", "Navi Mumbai, Maharashtra", "Allahabad, Uttar Pradesh", "Howrah, West Bengal", 
+    "Gwalior, Madhya Pradesh", "Jabalpur, Madhya Pradesh", "Coimbatore, Tamil Nadu", "Vijayawada, Andhra Pradesh", 
+    "Jodhpur, Rajasthan", "Madurai, Tamil Nadu", "Raipur, Chhattisgarh", "Kota, Rajasthan", 
+    "Guwahati, Assam", "Chandigarh", "Solapur, Maharashtra", "Hubli-Dharwad, Karnataka", "Bareilly, Uttar Pradesh", 
+    "Moradabad, Uttar Pradesh", "Mysore, Karnataka", "Gurgaon, Haryana", "Aligarh, Uttar Pradesh", 
+    "Jalandhar, Punjab", "Tiruchirappalli, Tamil Nadu", "Bhubaneswar, Odisha", "Salem, Tamil Nadu", 
+    "Warangal, Telangana", "Mira-Bhayandar, Maharashtra", "Thiruvananthapuram, Kerala", "Bhiwandi, Maharashtra", 
+    "Saharanpur, Uttar Pradesh", "Guntur, Andhra Pradesh", "Amravati, Maharashtra", "Bikaner, Rajasthan", 
+    "Noida, Uttar Pradesh", "Jamshedpur, Jharkhand", "Bhilai, Chhattisgarh", "Cuttack, Odisha", 
+    "Firozabad, Uttar Pradesh", "Kochi, Kerala", "Nellore, Andhra Pradesh", "Bhavnagar, Gujarat", 
+    "Dehradun, Uttarakhand", "Durgapur, West Bengal", "Asansol, West Bengal", "Rourkela, Odisha", 
+    "Nanded, Maharashtra", "Kolhapur, Maharashtra", "Ajmer, Rajasthan", "Akola, Maharashtra", 
+    "Gulbarga, Karnataka", "Jamnagar, Gujarat", "Ujjain, Madhya Pradesh", "Loni, Uttar Pradesh", 
+    "Siliguri, West Bengal", "Jhansi, Uttar Pradesh", "Ulhasnagar, Maharashtra", "Nellore, Andhra Pradesh", 
+    "Jammu, Jammu and Kashmir", "Sangli, Maharashtra", "Belgaum, Karnataka", "Mangalore, Karnataka", 
+    "Ambattur, Tamil Nadu", "Tirunelveli, Tamil Nadu", "Malegaon, Maharashtra", "Gaya, Bihar", 
+    "Jalgaon, Maharashtra", "Udaipur, Rajasthan", "Maheshtala, West Bengal"
+]
 
 def get_iex_instance():
     return IEXScraper() if IEXScraper else None
@@ -155,22 +189,31 @@ st.sidebar.header("🕹️ Global Production Control")
 st_autorefresh(interval=60 * 1000, key="iex_auto_refresh")
 
 # 1. Customer Context
-# 1. Universal Customer Context
+# 1. Universal Customer Context with Suggestions
 st.sidebar.subheader("📍 Customer Strategy Site")
-city_query = st.sidebar.text_input("Enter Plant City/Site (All-India)", value="Hyderabad", help="Type any city, town or district in India.")
+# Using selectbox with index=None to mimic search-as-you-type suggestions
+search_mode = st.sidebar.radio("Search Mode", ["Select from List", "Custom Type"], horizontal=True, label_visibility="collapsed")
+
+if search_mode == "Select from List":
+    city_query = st.sidebar.selectbox("Choose City", MAJOR_INDIAN_CITIES, help="Start typing to see suggestions.")
+else:
+    city_query = st.sidebar.text_input("Type Any City/Town", value="Kondapur", help="Enter any specific site name in India.")
 
 # Geocode logic
-geo_result = geocode_location(city_query)
-if geo_result:
-    lat, lon, full_address = geo_result
-    st.session_state.local_lat = lat
-    st.session_state.local_lon = lon
-    st.session_state.display_city = city_query.split(',')[0].strip().title()
-    st.sidebar.success(f"📍 Location Locked: {st.session_state.display_city}")
+if city_query:
+    geo_result = geocode_location(city_query)
+    if geo_result:
+        lat, lon, display_name = geo_result
+        st.session_state.local_lat = lat
+        st.session_state.local_lon = lon
+        st.session_state.display_city = display_name
+        st.sidebar.success(f"✅ Location Locked: {st.session_state.display_city}")
+    else:
+        st.session_state.local_lat, st.session_state.local_lon = 17.38, 78.48 
+        st.session_state.display_city = "Hyderabad, Telangana"
+        st.sidebar.warning("Search failed. Using Hyderabad.")
 else:
-    st.session_state.local_lat, st.session_state.local_lon = 17.38, 78.48 
-    st.session_state.display_city = "Hyderabad"
-    st.sidebar.warning("Search failed. Defaulting to Hyderabad.")
+    st.session_state.display_city = "Select a site"
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🌐 National Intelligence Sync")
