@@ -150,9 +150,9 @@ def get_prediction_data(model_name, price, demand, temp, wind):
     forecast = np.maximum(forecast, 15.0)
     
     next_price = forecast[0]
-    return blocks, forecast, next_price
+    return blocks, forecast, next_price, solar_peak_strength
 
-blocks, forecast_data, next_block_price = get_prediction_data(
+blocks, forecast_data, next_block_price, solar_peak_strength = get_prediction_data(
     selected_model_name, current_price, base_demand, temp_bhadla, wind_muppandal
 )
 
