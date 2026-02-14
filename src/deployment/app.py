@@ -38,16 +38,106 @@ def get_iex_instance(force_reload=False):
 # Set Page Config
 st.set_page_config(page_title="IEX Market Strategy Terminal", page_icon="⚡", layout="wide")
 
-# Custom CSS
-st.markdown("""<style>.main { background-color: #0f172a; } .metric-card { background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); min-height: 140px; display: flex; flex-direction: column; justify-content: center; position: relative; } .metric-label { color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; } .metric-value { color: #1e293b; font-size: 32px; font-weight: 800; } .strategy-container { border-radius: 12px; padding: 24px; text-align: center; min-height: 140px; display: flex; flex-direction: column; justify-content: center; }</style>""", unsafe_allow_html=True)
+# Custom CSS for Global Styles
+st.markdown("""
+    <style>
+    .main { background-color: #0f172a; }
+    .stMarkdown p, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 { color: #f8fafc !important; }
+    .metric-card {
+        background-color: #ffffff;
+        padding: 24px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        min-height: 140px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        position: relative;
+    }
+    .metric-help {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        cursor: pointer;
+        color: #94a3b8;
+        font-size: 14px;
+        font-weight: bold;
+    }
+    .metric-help:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 110%;
+        right: 0;
+        background: #1e293b;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 11px;
+        width: 180px;
+        z-index: 1000;
+        font-weight: 500;
+        line-height: 1.4;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+    .metric-label {
+        color: #64748b !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        margin-bottom: 8px !important;
+    }
+    .metric-value {
+        color: #1e293b !important;
+        font-size: 32px !important;
+        font-weight: 800 !important;
+        margin: 0 !important;
+    }
+    .metric-delta { font-size: 16px !important; font-weight: 600 !important; margin-top: 4px !important; }
+    .metric-subtext { color: #64748b !important; font-size: 11px !important; margin-top: 6px !important; font-weight: 500 !important; }
+    .strategy-container {
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        min-height: 140px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
+# Helper function for Metric Cards
 def custom_card(label, value, delta=None, delta_up=False, subtext=None, help_text=None):
-    st.markdown(f"""<div class="metric-card"><div class="metric-label">{label}</div><div class="metric-value">{value}</div><div style="font-size: 11px; color: #64748b; margin-top: 8px;">{subtext if subtext else ""}</div></div>""", unsafe_allow_html=True)
+    delta_html = ""
+    if delta:
+        color = "#ef4444" if delta_up else "#10b981"
+        symbol = "▲" if delta_up else "▼"
+        delta_html = f"<div class='metric-delta' style='color: {color};'>{symbol} {delta}</div>"
+    
+    help_html = f"<div class='metric-help' data-tooltip='{help_text}'>?</div>" if help_text else ""
+    subtext_html = f"<div class='metric-subtext'>{subtext}</div>" if subtext else ""
+    
+    st.markdown(f"""
+        <div class="metric-card">
+            {help_html}
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
+            {delta_html}
+            {subtext_html}
+        </div>
+    """, unsafe_allow_html=True)
+
+# Hub Data Base
+SOLAR_HUBS = {"Bhadla, RJ": {"lat": 27.53, "lon": 72.35}, "Pavagada, KA": {"lat": 14.28, "lon": 77.29}, "Kurnool, AP": {"lat": 15.54, "lon": 78.27}}
+WIND_HUBS = {"Muppandal, TN": {"lat": 8.25, "lon": 77.53}, "Jaisalmer, RJ": {"lat": 26.91, "lon": 70.91}}
 
 @st.cache_data(ttl=86400)
 def geocode_location(query):
     try:
-        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v8")
+        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v9")
         location = geolocator.geocode(f"{query}, India", timeout=10, addressdetails=True)
         if location:
             addr = location.raw.get('address', {})
@@ -82,7 +172,6 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("🌐 IEX DAM Live Synchronization")
 
 with st.spinner("Syncing IEX Market Dynamics..."):
-    # Defensive Scraper Instance
     scraper = get_iex_instance()
     mcp = st.session_state.get('live_mcp', 2840.5) 
     mcv = st.session_state.get('live_mcv', 6278.5)
@@ -91,7 +180,6 @@ with st.spinner("Syncing IEX Market Dynamics..."):
 
     if scraper:
         try:
-            # Multi-Method Defensive Probe
             sync_func = getattr(scraper, 'get_latest_market_data', None) or getattr(scraper, 'get_latest_mcp', None)
             if sync_func:
                 res = sync_func()
@@ -99,8 +187,7 @@ with st.spinner("Syncing IEX Market Dynamics..."):
                     if len(res) == 4: mcp, mcv, m_block, m_date = res
                     elif len(res) == 2: mcp, m_date = res
                 if mcp: 
-                    st.session_state.live_mcp = float(mcp)
-                    st.session_state.live_mcv = float(mcv)
+                    st.session_state.live_mcp, st.session_state.live_mcv = float(mcp), float(mcv)
                     st.session_state.m_date, st.session_state.m_block = str(m_date), str(m_block)
             else:
                 st.sidebar.error("Critical: Sync methods missing in runtime.")
@@ -116,38 +203,54 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("📊 Market Parameters")
 p_bids = st.sidebar.slider("Purchase Bids (MW Demand)", 5000, 30000, 18000)
 
-# Forecast Logic
+# Forecast Logic with Renewable Impact
 def get_national_forecast(price, demand):
     blocks = np.arange(1, 97)
     scale = max(1.0, price / 150.0)
-    forecast = (price * 0.98 + 5 * scale * np.sin(2 * np.pi * blocks / 96)) + (demand/30000)*15
+    # Simulated renewable impact (Solar DIP at night, Peak at noon)
+    solar_impact = 10 * np.sin(np.pi * blocks / 96) # Higher impact during day
+    forecast = (price * 0.98 + 5 * scale * np.sin(2 * np.pi * blocks / 96)) + (demand/30000)*15 - solar_impact
     return blocks, np.maximum(forecast, 15.0), forecast[0]
 
 blocks, forecast_data, next_price = get_national_forecast(st.session_state.live_mcp, p_bids)
 
-# --- UI ---
+# --- DASHBOARD UI ---
 st.title("⚡ IEX Market Strategy Dashboard")
 st.markdown(f"#### Day-Ahead Market (DAM) Planning | Serve: {st.session_state.display_city}")
 
 st.markdown("### 📈 Live Market Clearing Components")
 col1, col2, col3, col4 = st.columns(4)
-with col1: custom_card("Uniform MCP", f"₹{st.session_state.live_mcp:.2f}", subtext=f"Block: {st.session_state.m_block}")
-with col2: custom_card("Market Volume (MCV)", f"{st.session_state.live_mcv:,.0f} MW", subtext=f"Block: {st.session_state.m_block}")
+
+with col1: 
+    custom_card("Uniform MCP", f"₹{st.session_state.live_mcp:.2f}", subtext=f"Block: {st.session_state.m_block}", help_text="Market Clearing Price fetched live from IEX.")
+with col2: 
+    custom_card("Market Volume (MCV)", f"{st.session_state.live_mcv:,.0f} MW", subtext=f"Block: {st.session_state.m_block}", help_text="Total Cleared Quantity in the current interval.")
 with col3:
     diff = next_price - st.session_state.live_mcp
-    custom_card("T+1 Price Forecast", f"₹{next_price:.2f}", subtext="Target: Next 15-min")
+    custom_card("T+1 Price Forecast", f"₹{next_price:.2f}", delta=f"{abs(diff):.2f}", delta_up=diff > 0, subtext="Target: Next 15-min", help_text="Predicted price for the upcoming interval.")
 with col4:
-    sig, col = ("BUY BID", "#10b981") if diff < -2.0 else (("SELL BID", "#f59e0b") if diff > 2.0 else ("HOLD", "#ef4444"))
-    st.markdown(f"""<div class="strategy-container" style="background-color: {col};"><div style="color: white; font-size: 24px; font-weight: 800;">{sig}</div></div>""", unsafe_allow_html=True)
+    if diff < -2.0: sig, col, htip = "BUY BID", "#10b981", "Model suggests buying."
+    elif diff > 2.0: sig, col, htip = "SELL BID", "#f59e0b", "Predicted price spike."
+    else: sig, col, htip = "HOLD", "#ef4444", "Market stable."
+    st.markdown(f"""<div class="strategy-container" style="background-color: {col};"><div style="color: rgba(255,255,255,0.8); font-size: 10px; font-weight: 700; text-transform: uppercase;">Strategic Plan</div><div style="color: white; font-size: 24px; font-weight: 800; margin-top: 4px;">{sig}</div><div style="color: rgba(255,255,255,0.9); font-size: 10px; margin-top: 4px;">{htip}</div></div>""", unsafe_allow_html=True)
 
 st.markdown("---")
+st.subheader("📊 National Trajectory - 96 Time Blocks (15-min Intervals)")
 fig = go.Figure()
 time_labels = [(datetime(2026, 1, 1) + timedelta(minutes=15 * (int(b)-1))).strftime('%H:%M') for b in blocks]
-fig.add_trace(go.Scatter(x=blocks, y=forecast_data, mode='lines', line=dict(color='#3b82f6', width=4)))
+fig.add_trace(go.Scatter(x=blocks, y=forecast_data, mode='lines', name='National Forecast', line=dict(color='#3b82f6', width=4)))
+# Restore IEX Base Price Line
+fig.add_hline(y=st.session_state.live_mcp, line_dash="dash", line_color="#f59e0b", annotation_text="IEX Base Price")
 fig.update_layout(height=400, template="plotly_white", margin=dict(l=50, r=50, t=30, b=50), xaxis=dict(tickmode='array', tickvals=blocks[::8], ticktext=time_labels[::8]))
 st.plotly_chart(fig, use_container_width=True)
 
-with st.expander("🎓 **IEX Bidding Strategy Lab**"):
-    st.markdown("""| Feature | **Single Bid** | **Block Bid** |\\n| :-- | :-- | :-- |\\n| Time | 15-min blocks | Continuous set |\\n| Exec | Partial allowed | All-or-None |""")
+with st.expander("🎓 **IEX Bidding Strategy Lab**: Single vs. Block Bids"):
+    st.markdown("""
+| Feature | **Single Bid (Portfolio)** | **Block Bid (All-or-None)** |
+| :--- | :--- | :--- |
+| **Time Period** | Individual 15-min blocks | Continuous set of blocks |
+| **Execution** | Partial execution allowed | Full quantity or nothing |
+| **Logic** | Linear interpolation between points | Selected if Avg MCP >= Bid Price |
+""")
 
-st.caption(f"Environment: IEX-Production | Sync: {st.session_state.sync_time} IST")
+st.caption(f"Environment: IEX-Production | Market: Unconstrained DAM | Sync: {st.session_state.sync_time} IST")
