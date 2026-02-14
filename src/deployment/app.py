@@ -109,7 +109,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Helper function for Metric Cards
+# Helper function for Metric Cards - FIXED WHITESPACE BUG
 def custom_card(label, value, delta=None, delta_up=False, subtext=None, help_text=None):
     delta_html = ""
     if delta:
@@ -120,15 +120,7 @@ def custom_card(label, value, delta=None, delta_up=False, subtext=None, help_tex
     help_html = f"<div class='metric-help' data-tooltip='{help_text}'>?</div>" if help_text else ""
     subtext_html = f"<div class='metric-subtext'>{subtext}</div>" if subtext else ""
     
-    st.markdown(f"""
-        <div class="metric-card">
-            {help_html}
-            <div class="metric-label">{label}</div>
-            <div class="metric-value">{value}</div>
-            {delta_html}
-            {subtext_html}
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card">{help_html}<div class="metric-label">{label}</div><div class="metric-value">{value}</div>{delta_html}{subtext_html}</div>', unsafe_allow_html=True)
 
 # Hub Data Base
 SOLAR_HUBS = {"Bhadla, RJ": {"lat": 27.53, "lon": 72.35}, "Pavagada, KA": {"lat": 14.28, "lon": 77.29}, "Kurnool, AP": {"lat": 15.54, "lon": 78.27}}
@@ -137,7 +129,7 @@ WIND_HUBS = {"Muppandal, TN": {"lat": 8.25, "lon": 77.53}, "Jaisalmer, RJ": {"la
 @st.cache_data(ttl=86400)
 def geocode_location(query):
     try:
-        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v9")
+        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v10")
         location = geolocator.geocode(f"{query}, India", timeout=10, addressdetails=True)
         if location:
             addr = location.raw.get('address', {})
@@ -207,9 +199,9 @@ p_bids = st.sidebar.slider("Purchase Bids (MW Demand)", 5000, 30000, 18000)
 def get_national_forecast(price, demand):
     blocks = np.arange(1, 97)
     scale = max(1.0, price / 150.0)
-    # Simulated renewable impact (Solar DIP at night, Peak at noon)
-    solar_impact = 10 * np.sin(np.pi * blocks / 96) # Higher impact during day
-    forecast = (price * 0.98 + 5 * scale * np.sin(2 * np.pi * blocks / 96)) + (demand/30000)*15 - solar_impact
+    solar_impact = 15 * np.sin(np.pi * blocks / 96) # Noon peak impact
+    wind_impact = 5 * np.cos(np.pi * blocks / 48) # Evening/Night impact
+    forecast = (price * 0.98 + 8 * scale * np.sin(2 * np.pi * blocks / 96)) + (demand/30000)*20 - solar_impact - wind_impact
     return blocks, np.maximum(forecast, 15.0), forecast[0]
 
 blocks, forecast_data, next_price = get_national_forecast(st.session_state.live_mcp, p_bids)
@@ -232,14 +224,13 @@ with col4:
     if diff < -2.0: sig, col, htip = "BUY BID", "#10b981", "Model suggests buying."
     elif diff > 2.0: sig, col, htip = "SELL BID", "#f59e0b", "Predicted price spike."
     else: sig, col, htip = "HOLD", "#ef4444", "Market stable."
-    st.markdown(f"""<div class="strategy-container" style="background-color: {col};"><div style="color: rgba(255,255,255,0.8); font-size: 10px; font-weight: 700; text-transform: uppercase;">Strategic Plan</div><div style="color: white; font-size: 24px; font-weight: 800; margin-top: 4px;">{sig}</div><div style="color: rgba(255,255,255,0.9); font-size: 10px; margin-top: 4px;">{htip}</div></div>""", unsafe_allow_html=True)
+    st.markdown(f'<div class="strategy-container" style="background-color: {col};"><div style="color: rgba(255,255,255,0.8); font-size: 10px; font-weight: 700; text-transform: uppercase;">Strategic Plan</div><div style="color: white; font-size: 24px; font-weight: 800; margin-top: 4px;">{sig}</div><div style="color: rgba(255,255,255,0.9); font-size: 10px; margin-top: 4px;">{htip}</div></div>', unsafe_allow_html=True)
 
 st.markdown("---")
 st.subheader("📊 National Trajectory - 96 Time Blocks (15-min Intervals)")
 fig = go.Figure()
 time_labels = [(datetime(2026, 1, 1) + timedelta(minutes=15 * (int(b)-1))).strftime('%H:%M') for b in blocks]
 fig.add_trace(go.Scatter(x=blocks, y=forecast_data, mode='lines', name='National Forecast', line=dict(color='#3b82f6', width=4)))
-# Restore IEX Base Price Line
 fig.add_hline(y=st.session_state.live_mcp, line_dash="dash", line_color="#f59e0b", annotation_text="IEX Base Price")
 fig.update_layout(height=400, template="plotly_white", margin=dict(l=50, r=50, t=30, b=50), xaxis=dict(tickmode='array', tickvals=blocks[::8], ticktext=time_labels[::8]))
 st.plotly_chart(fig, use_container_width=True)
