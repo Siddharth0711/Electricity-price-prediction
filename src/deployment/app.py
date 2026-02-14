@@ -38,7 +38,7 @@ def get_iex_instance(force_reload=False):
 # Set Page Config
 st.set_page_config(page_title="IEX Market Strategy Terminal", page_icon="⚡", layout="wide")
 
-# Custom CSS for Global Styles
+# Custom CSS
 st.markdown("""
     <style>
     .main { background-color: #0f172a; }
@@ -109,27 +109,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Helper function for Metric Cards - FIXED WHITESPACE BUG
 def custom_card(label, value, delta=None, delta_up=False, subtext=None, help_text=None):
-    delta_html = ""
-    if delta:
-        color = "#ef4444" if delta_up else "#10b981"
-        symbol = "▲" if delta_up else "▼"
-        delta_html = f"<div class='metric-delta' style='color: {color};'>{symbol} {delta}</div>"
-    
+    delta_html = f"<div class='metric-delta' style='color: {'#ef4444' if delta_up else '#10b981'};'>{'▲' if delta_up else '▼'} {delta}</div>" if delta else ""
     help_html = f"<div class='metric-help' data-tooltip='{help_text}'>?</div>" if help_text else ""
     subtext_html = f"<div class='metric-subtext'>{subtext}</div>" if subtext else ""
-    
     st.markdown(f'<div class="metric-card">{help_html}<div class="metric-label">{label}</div><div class="metric-value">{value}</div>{delta_html}{subtext_html}</div>', unsafe_allow_html=True)
-
-# Hub Data Base
-SOLAR_HUBS = {"Bhadla, RJ": {"lat": 27.53, "lon": 72.35}, "Pavagada, KA": {"lat": 14.28, "lon": 77.29}, "Kurnool, AP": {"lat": 15.54, "lon": 78.27}}
-WIND_HUBS = {"Muppandal, TN": {"lat": 8.25, "lon": 77.53}, "Jaisalmer, RJ": {"lat": 26.91, "lon": 70.91}}
 
 @st.cache_data(ttl=86400)
 def geocode_location(query):
     try:
-        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v10")
+        geolocator = Nominatim(user_agent="mcp_strategy_terminal_v11")
         location = geolocator.geocode(f"{query}, India", timeout=10, addressdetails=True)
         if location:
             addr = location.raw.get('address', {})
@@ -143,14 +132,25 @@ def geocode_location(query):
 st.sidebar.header("🕹️ IEX Market Controls")
 st_autorefresh(interval=60 * 1000, key="iex_auto_refresh")
 
-if st.sidebar.button("🔄 Force App Hard-Reset"):
-    st.cache_data.clear()
-    st.session_state.clear()
-    get_iex_instance(force_reload=True)
-    st.rerun()
+# 1. Reset Switch (Safety Feature for Deployment)
+with st.sidebar.expander("🛠️ Advanced Settings"):
+    if st.button("🔄 Force App Hard-Reset"):
+        st.cache_data.clear()
+        st.session_state.clear()
+        get_iex_instance(force_reload=True)
+        st.rerun()
+    st.caption("Only use if dashboard sync stalls.")
 
+# 2. Customer Strategy Site - RESTORED OPTIONS
 st.sidebar.subheader("📍 Customer Strategy Site")
-city_query = st.sidebar.text_input("Site Location (City/Town)", value="Hyderabad")
+MAJOR_CITIES = ["Hyderabad", "Mumbai", "Delhi", "Bangalore", "Chennai", "Kolkata", "Ahmedabad", "Pune", "Custom..."]
+selected_city = st.sidebar.selectbox("Select Target Market Hub", options=MAJOR_CITIES, index=0)
+
+if selected_city == "Custom...":
+    city_query = st.sidebar.text_input("Enter City/Town Name", value="")
+else:
+    city_query = selected_city
+
 if city_query:
     geo_result = geocode_location(city_query)
     if geo_result:
@@ -158,7 +158,7 @@ if city_query:
         st.session_state.local_lat, st.session_state.local_lon, st.session_state.display_city = lat, lon, dn
     else:
         st.session_state.local_lat, st.session_state.local_lon = 17.38, 78.48
-        st.session_state.display_city = "Hyderabad, Telangana"
+        st.session_state.display_city = f"{city_query}, India"
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🌐 IEX DAM Live Synchronization")
@@ -195,12 +195,12 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("📊 Market Parameters")
 p_bids = st.sidebar.slider("Purchase Bids (MW Demand)", 5000, 30000, 18000)
 
-# Forecast Logic with Renewable Impact
+# Forecast Logic
 def get_national_forecast(price, demand):
     blocks = np.arange(1, 97)
     scale = max(1.0, price / 150.0)
-    solar_impact = 15 * np.sin(np.pi * blocks / 96) # Noon peak impact
-    wind_impact = 5 * np.cos(np.pi * blocks / 48) # Evening/Night impact
+    solar_impact = 15 * np.sin(np.pi * blocks / 96)
+    wind_impact = 5 * np.cos(np.pi * blocks / 48)
     forecast = (price * 0.98 + 8 * scale * np.sin(2 * np.pi * blocks / 96)) + (demand/30000)*20 - solar_impact - wind_impact
     return blocks, np.maximum(forecast, 15.0), forecast[0]
 
@@ -213,10 +213,8 @@ st.markdown(f"#### Day-Ahead Market (DAM) Planning | Serve: {st.session_state.di
 st.markdown("### 📈 Live Market Clearing Components")
 col1, col2, col3, col4 = st.columns(4)
 
-with col1: 
-    custom_card("Uniform MCP", f"₹{st.session_state.live_mcp:.2f}", subtext=f"Block: {st.session_state.m_block}", help_text="Market Clearing Price fetched live from IEX.")
-with col2: 
-    custom_card("Market Volume (MCV)", f"{st.session_state.live_mcv:,.0f} MW", subtext=f"Block: {st.session_state.m_block}", help_text="Total Cleared Quantity in the current interval.")
+with col1: custom_card("Uniform MCP", f"₹{st.session_state.live_mcp:.2f}", subtext=f"Block: {st.session_state.m_block}", help_text="Market Clearing Price fetched live from IEX.")
+with col2: custom_card("Market Volume (MCV)", f"{st.session_state.live_mcv:,.0f} MW", subtext=f"Block: {st.session_state.m_block}", help_text="Total Cleared Quantity in the current interval.")
 with col3:
     diff = next_price - st.session_state.live_mcp
     custom_card("T+1 Price Forecast", f"₹{next_price:.2f}", delta=f"{abs(diff):.2f}", delta_up=diff > 0, subtext="Target: Next 15-min", help_text="Predicted price for the upcoming interval.")
